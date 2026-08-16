@@ -63,6 +63,44 @@ sppatch segment -- --manifest images.jsonl --data-root /data/sp --out-dir /data/
   --method sp-fluorescence --patch-size 224 --overlap 0
 ```
 
+## Minimal reproducible example
+
+The repository deliberately contains no source images.  The following example
+uses a small, 25-channel OME-TIFF from an HTAN Level 2 collection **after you
+have obtained it through the source data portal and accepted its access terms**.
+It is a useful smoke test because it has OME channel names, `CYX` dimensions and
+is only about 3.4 MB in the source collection.
+
+Expected relative path below `DATA_ROOT`:
+
+```text
+HTAN/TNP-SARDANA/mIHC/Level_2/WD-76845-003_ROI01.ome.tif
+```
+
+```bash
+export DATA_ROOT=/path/to/downloaded/sp-data
+mkdir -p example
+printf '%s\n' \
+  '{"path":"HTAN/TNP-SARDANA/mIHC/Level_2/WD-76845-003_ROI01.ome.tif","reader_type":"tiff"}' \
+  > example/images.jsonl
+
+# Confirm that every channel needed for later patch reads can be decoded.
+sppatch integrity --manifest example/images.jsonl --data-root "$DATA_ROOT" \
+  --out example/integrity.json
+
+# Generate thumbnail, foreground mask, contours and coordinate HDF5.
+# Point --trident-root at a compatible local TRIDENT checkout.
+sppatch segment -- --manifest example/images.jsonl --data-root "$DATA_ROOT" \
+  --out-dir example/output --trident-root /path/to/TRIDENT \
+  --method sp-fluorescence --foreground-preset fluorescence-default \
+  --patch-size 224 --overlap 0
+```
+
+The output coordinate file is written under
+`example/output/patch_224_overlap_0/patches/`; its HDF5 attributes retain the
+source channel names and the marker-normalization result.  Inspect the rendered
+files in `example/output/trident_job/` before processing a larger collection.
+
 ## Input manifest
 
 ```json
@@ -100,7 +138,16 @@ not add source-specific branches to `compat/`.
 See [`docs/architecture.md`](docs/architecture.md) and
 [`docs/special-cases.md`](docs/special-cases.md).
 
-## Licensing
+## Data, privacy and release boundaries
 
-No license is selected yet. Choose one only after confirming that every copied
-or contributed component may be distributed under that license.
+No raw images, generated patch HDF5 files, credentials, access tokens or
+participant metadata are included in this repository.  Download source images
+separately and follow the source collection's access, consent and redistribution
+terms.  Do not commit data exports, manifest files containing sensitive paths or
+tokens to a fork.
+
+## License
+
+This repository's code is released under the [MIT License](LICENSE).
+Dependencies and externally installed tools, including TRIDENT, remain subject
+to their own licenses.

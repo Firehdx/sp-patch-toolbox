@@ -6,9 +6,22 @@ __pycache__/
 build/
 dist/
 outputs/
+# Local source data and generated results must not be published accidentally.
+datasets/
+patch/
+*.jsonl
 *.h5
 *.hdf5
 *.ome.tif
 *.ome.tiff
 *.qptiff
 *.ims
+# Never keep credentials in a repository.
+.env
+.env.*
+*.token
+*token*.txt
+*credential*
+*secret*
+*.pem
+*.key

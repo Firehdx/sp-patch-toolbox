@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Robust foreground segmentation and patch-coordinate HDF5 tooling for spatial proteomics images."
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
 authors = [{name = "Spatial Proteomics Toolbox Contributors"}]
 dependencies = [
   "h5py>=3.8",

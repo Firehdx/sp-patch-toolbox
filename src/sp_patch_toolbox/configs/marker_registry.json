@@ -1,0 +1,1042 @@
+{
+  "version": 2,
+  "unknown_marker_id": 0,
+  "blank_marker_id": 1,
+  "markers": [
+    {
+      "id": 0,
+      "name": "Unknown",
+      "aliases": [
+        "unknown",
+        "unmapped"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Blank",
+      "aliases": [
+        "blank",
+        "Autofluorescence",
+        "Sample AF",
+        "AF",
+        "02_AF1_AF1",
+        "Blank1",
+        "Blank2",
+        "HandE-CH1",
+        "HandE-CH2",
+        "HandE-CH3",
+        "HandE-CH4"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Nuclear stain",
+      "aliases": [
+        "DAPI",
+        "DNA",
+        "Hoechst",
+        "HOCHST",
+        "Nuclei",
+        "Nucleus Hoechst",
+        "DRAQ5",
+        "HOCHST13",
+        "Hoechst:Cycle4_Nucle"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "CD20",
+      "aliases": [
+        "CD20"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Vimentin",
+      "aliases": [
+        "Vimentin"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "CD3",
+      "aliases": [
+        "CD3",
+        "CD3e"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "CD8",
+      "aliases": [
+        "CD8",
+        "CD8a",
+        "CD8 alpha"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "CD4",
+      "aliases": [
+        "CD4"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Ki67",
+      "aliases": [
+        "Ki67"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "aSMA",
+      "aliases": [
+        "aSMA",
+        "SMA",
+        "SMAa",
+        "alphaSMA"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "CD68",
+      "aliases": [
+        "CD68"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Lumican",
+      "aliases": [
+        "Lumican"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Desmin",
+      "aliases": [
+        "Desmin"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "SPARC",
+      "aliases": [
+        "SPARC"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "CD10",
+      "aliases": [
+        "CD10"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "CD21",
+      "aliases": [
+        "CD21"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "BCL2",
+      "aliases": [
+        "BCL2"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "DC-SIGN",
+      "aliases": [
+        "DC-SIGN"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "IRF4",
+      "aliases": [
+        "IRF4",
+        "P7 IRF4 FITC"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "CD45",
+      "aliases": [
+        "CD45"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "CD31",
+      "aliases": [
+        "CD31"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "CD163",
+      "aliases": [
+        "CD163"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "Cytokeratin",
+      "aliases": [
+        "Cytokeratin",
+        "pan Cytokeratin",
+        "Pan-CK",
+        "CK",
+        "Keratin"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "CK/EpCAM",
+      "aliases": [
+        "CK/EpCAM"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "EpCAM",
+      "aliases": [
+        "EpCAM"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "FOXP3",
+      "aliases": [
+        "FOXP3"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "CD34",
+      "aliases": [
+        "CD34"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "HLA-DR",
+      "aliases": [
+        "HLA-DR"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "CD49A",
+      "aliases": [
+        "CD49a"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "LYVE1",
+      "aliases": [
+        "LYVE1"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "CD15",
+      "aliases": [
+        "CD15"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "CD11C",
+      "aliases": [
+        "CD11c"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "CD45RO",
+      "aliases": [
+        "CD45RO"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "CD39",
+      "aliases": [
+        "CD39"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "BetaTubulin3",
+      "aliases": [
+        "BetaTubulin3",
+        "BetaTub3",
+        "Tubulin"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "CD5",
+      "aliases": [
+        "CD5"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "Synaptophysin",
+      "aliases": [
+        "Synaptophysin"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "CD7",
+      "aliases": [
+        "CD7"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "Chromogranin A",
+      "aliases": [
+        "ChromograninA"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "E-Cadherin",
+      "aliases": [
+        "E-Cadherin"
+      ]
+    },
+    {
+      "id": 40,
+      "name": "PCNA",
+      "aliases": [
+        "PCNA"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "Keratin10",
+      "aliases": [
+        "Keratin10"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "Keratin14",
+      "aliases": [
+        "Keratin14"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "PD-1",
+      "aliases": [
+        "PD-1"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "PD-L1",
+      "aliases": [
+        "PD-L1",
+        "PDL1"
+      ]
+    },
+    {
+      "id": 45,
+      "name": "GZMB",
+      "aliases": [
+        "GZMB",
+        "Granzyme B"
+      ]
+    },
+    {
+      "id": 46,
+      "name": "CD38",
+      "aliases": [
+        "CD38"
+      ]
+    },
+    {
+      "id": 47,
+      "name": "CD44",
+      "aliases": [
+        "CD44"
+      ]
+    },
+    {
+      "id": 48,
+      "name": "CD138",
+      "aliases": [
+        "CD138",
+        "Syndecan1"
+      ]
+    },
+    {
+      "id": 49,
+      "name": "CD106",
+      "aliases": [
+        "CD106"
+      ]
+    },
+    {
+      "id": 50,
+      "name": "CD54",
+      "aliases": [
+        "CD54"
+      ]
+    },
+    {
+      "id": 51,
+      "name": "CD25",
+      "aliases": [
+        "CD25"
+      ]
+    },
+    {
+      "id": 52,
+      "name": "CD11B",
+      "aliases": [
+        "CD11b"
+      ]
+    },
+    {
+      "id": 53,
+      "name": "CD56",
+      "aliases": [
+        "CD56"
+      ]
+    },
+    {
+      "id": 54,
+      "name": "CD57",
+      "aliases": [
+        "CD57"
+      ]
+    },
+    {
+      "id": 55,
+      "name": "CD69",
+      "aliases": [
+        "CD69"
+      ]
+    },
+    {
+      "id": 56,
+      "name": "CD35",
+      "aliases": [
+        "CD35"
+      ]
+    },
+    {
+      "id": 57,
+      "name": "CD1C",
+      "aliases": [
+        "CD1c"
+      ]
+    },
+    {
+      "id": 58,
+      "name": "CD23",
+      "aliases": [
+        "CD23"
+      ]
+    },
+    {
+      "id": 59,
+      "name": "BCL6",
+      "aliases": [
+        "BCL6"
+      ]
+    },
+    {
+      "id": 60,
+      "name": "IgD",
+      "aliases": [
+        "IgD"
+      ]
+    },
+    {
+      "id": 61,
+      "name": "IgA1",
+      "aliases": [
+        "IgA1"
+      ]
+    },
+    {
+      "id": 62,
+      "name": "IgA2",
+      "aliases": [
+        "IgA2"
+      ]
+    },
+    {
+      "id": 63,
+      "name": "Collagen IV",
+      "aliases": [
+        "Collagen IV",
+        "Collagen IV Corrected"
+      ]
+    },
+    {
+      "id": 64,
+      "name": "Fibrinogen",
+      "aliases": [
+        "Fibrinogen"
+      ]
+    },
+    {
+      "id": 65,
+      "name": "Glycophorin A",
+      "aliases": [
+        "GlycophorinA"
+      ]
+    },
+    {
+      "id": 66,
+      "name": "MUC1",
+      "aliases": [
+        "MUC-1",
+        "MUC-1/EMA"
+      ]
+    },
+    {
+      "id": 67,
+      "name": "EGFR",
+      "aliases": [
+        "EGFR"
+      ]
+    },
+    {
+      "id": 68,
+      "name": "p53",
+      "aliases": [
+        "p53"
+      ]
+    },
+    {
+      "id": 69,
+      "name": "LAG3",
+      "aliases": [
+        "LAG-3"
+      ]
+    },
+    {
+      "id": 70,
+      "name": "IDO1",
+      "aliases": [
+        "IDO-1"
+      ]
+    },
+    {
+      "id": 71,
+      "name": "ICOS",
+      "aliases": [
+        "ICOS"
+      ]
+    },
+    {
+      "id": 72,
+      "name": "VISTA",
+      "aliases": [
+        "VISTA"
+      ]
+    },
+    {
+      "id": 73,
+      "name": "Podoplanin",
+      "aliases": [
+        "Podoplanin"
+      ]
+    },
+    {
+      "id": 74,
+      "name": "Aquaporin1",
+      "aliases": [
+        "Aquaporin1",
+        "AQP1"
+      ]
+    },
+    {
+      "id": 75,
+      "name": "Keratin5",
+      "aliases": [
+        "Keratin5"
+      ]
+    },
+    {
+      "id": 76,
+      "name": "Keratin7",
+      "aliases": [
+        "Keratin7",
+        "Cytokeratin 7",
+        "CK7",
+        "KRT7"
+      ]
+    },
+    {
+      "id": 77,
+      "name": "Keratin8",
+      "aliases": [
+        "Keratin8"
+      ]
+    },
+    {
+      "id": 78,
+      "name": "Keratin15",
+      "aliases": [
+        "Keratin15"
+      ]
+    },
+    {
+      "id": 79,
+      "name": "LaminA",
+      "aliases": [
+        "LaminA"
+      ]
+    },
+    {
+      "id": 80,
+      "name": "AnnexinI",
+      "aliases": [
+        "AnnexinI"
+      ]
+    },
+    {
+      "id": 81,
+      "name": "AIRE",
+      "aliases": [
+        "AIRE"
+      ]
+    },
+    {
+      "id": 82,
+      "name": "DEC205",
+      "aliases": [
+        "DEC205"
+      ]
+    },
+    {
+      "id": 83,
+      "name": "CD99",
+      "aliases": [
+        "CD99"
+      ]
+    },
+    {
+      "id": 84,
+      "name": "CD206",
+      "aliases": [
+        "CD206"
+      ]
+    },
+    {
+      "id": 85,
+      "name": "CD123",
+      "aliases": [
+        "CD123"
+      ]
+    },
+    {
+      "id": 86,
+      "name": "TCR gamma delta",
+      "aliases": [
+        "TCRgammadelta"
+      ]
+    },
+    {
+      "id": 87,
+      "name": "Va7.2",
+      "aliases": [
+        "Va7.2",
+        "Valpha7_2"
+      ]
+    },
+    {
+      "id": 88,
+      "name": "ASS1",
+      "aliases": [
+        "ASS1"
+      ]
+    },
+    {
+      "id": 89,
+      "name": "Glutamine synthetase",
+      "aliases": [
+        "Glutamine synthetase"
+      ]
+    },
+    {
+      "id": 90,
+      "name": "ACE2",
+      "aliases": [
+        "ACE2"
+      ]
+    },
+    {
+      "id": 91,
+      "name": "TMPRSS2",
+      "aliases": [
+        "TMPRSS2"
+      ]
+    },
+    {
+      "id": 92,
+      "name": "Podocin",
+      "aliases": [
+        "Podocin"
+      ]
+    },
+    {
+      "id": 93,
+      "name": "CD66B",
+      "aliases": [
+        "CD66b"
+      ]
+    },
+    {
+      "id": 94,
+      "name": "CathepsinL",
+      "aliases": [
+        "CathepsinL"
+      ]
+    },
+    {
+      "id": 95,
+      "name": "Uromodulin",
+      "aliases": [
+        "Uromodulin"
+      ]
+    },
+    {
+      "id": 96,
+      "name": "Langerin",
+      "aliases": [
+        "Langerin"
+      ]
+    },
+    {
+      "id": 97,
+      "name": "CD117",
+      "aliases": [
+        "CD117"
+      ]
+    },
+    {
+      "id": 98,
+      "name": "CLEC9A",
+      "aliases": [
+        "CLEC9A"
+      ]
+    },
+    {
+      "id": 100,
+      "name": "MMP9",
+      "aliases": [
+        "MMP9"
+      ]
+    },
+    {
+      "id": 101,
+      "name": "MMP12",
+      "aliases": [
+        "MMP12"
+      ]
+    },
+    {
+      "id": 102,
+      "name": "CDX2",
+      "aliases": [
+        "CDX2"
+      ]
+    },
+    {
+      "id": 103,
+      "name": "GATA3",
+      "aliases": [
+        "GATA3"
+      ]
+    },
+    {
+      "id": 104,
+      "name": "CD2",
+      "aliases": [
+        "CD2"
+      ]
+    },
+    {
+      "id": 105,
+      "name": "Na-K-ATPase",
+      "aliases": [
+        "Na-K-ATPase"
+      ]
+    },
+    {
+      "id": 106,
+      "name": "CCR4",
+      "aliases": [
+        "CCR4",
+        "CD194",
+        "CCR4/CD194"
+      ]
+    },
+    {
+      "id": 107,
+      "name": "T-bet",
+      "aliases": [
+        "T-bet",
+        "TBX21"
+      ]
+    },
+    {
+      "id": 108,
+      "name": "Beta-catenin",
+      "aliases": [
+        "Beta-catenin",
+        "B-catenin"
+      ]
+    },
+    {
+      "id": 109,
+      "name": "CD45RA",
+      "aliases": [
+        "CD45RA"
+      ]
+    },
+    {
+      "id": 110,
+      "name": "CD30",
+      "aliases": [
+        "CD30"
+      ]
+    },
+    {
+      "id": 111,
+      "name": "CD71",
+      "aliases": [
+        "CD71",
+        "Transferrin receptor",
+        "TFRC"
+      ]
+    },
+    {
+      "id": 112,
+      "name": "GFAP",
+      "aliases": [
+        "GFAP"
+      ]
+    },
+    {
+      "id": 113,
+      "name": "CD16",
+      "aliases": [
+        "CD16",
+        "FCGR3"
+      ]
+    },
+    {
+      "id": 114,
+      "name": "CD1a",
+      "aliases": [
+        "CD1a"
+      ]
+    },
+    {
+      "id": 115,
+      "name": "CD79a",
+      "aliases": [
+        "CD79a"
+      ]
+    },
+    {
+      "id": 116,
+      "name": "PAX5",
+      "aliases": [
+        "PAX5"
+      ]
+    },
+    {
+      "id": 117,
+      "name": "Hep-Par-1",
+      "aliases": [
+        "Hep-Par-1"
+      ]
+    },
+    {
+      "id": 118,
+      "name": "Melan A",
+      "aliases": [
+        "Melan A",
+        "MART1",
+        "MLANA"
+      ]
+    },
+    {
+      "id": 119,
+      "name": "OX40",
+      "aliases": [
+        "OX-40",
+        "CD134",
+        "CD134/Ox40"
+      ]
+    },
+    {
+      "id": 120,
+      "name": "Hyaluronan",
+      "aliases": [
+        "Hyaluronan",
+        "HA"
+      ]
+    },
+    {
+      "id": 121,
+      "name": "CD164",
+      "aliases": [
+        "CD164"
+      ]
+    },
+    {
+      "id": 122,
+      "name": "CD162",
+      "aliases": [
+        "CD162",
+        "CLA/CD162",
+        "CLA",
+        "PSGL-1"
+      ]
+    },
+    {
+      "id": 123,
+      "name": "Mast Cell Tryptase",
+      "aliases": [
+        "Mast-cell-tryptase",
+        "MCT",
+        "Tryptase"
+      ]
+    },
+    {
+      "id": 124,
+      "name": "CXCL13",
+      "aliases": [
+        "CXCL13"
+      ]
+    },
+    {
+      "id": 125,
+      "name": "CD49f",
+      "aliases": [
+        "CD49f",
+        "Integrin alpha 6",
+        "ITGA6"
+      ]
+    },
+    {
+      "id": 126,
+      "name": "TIM3",
+      "aliases": [
+        "Tim-3",
+        "HAVCR2"
+      ]
+    },
+    {
+      "id": 127,
+      "name": "CCR6",
+      "aliases": [
+        "CCR6"
+      ]
+    },
+    {
+      "id": 128,
+      "name": "TCR beta",
+      "aliases": [
+        "TCR-β",
+        "TCRB"
+      ]
+    },
+    {
+      "id": 129,
+      "name": "CD94",
+      "aliases": [
+        "CD94"
+      ]
+    },
+    {
+      "id": 130,
+      "name": "Lysozyme",
+      "aliases": [
+        "Lysozyme",
+        "LYZ"
+      ]
+    },
+    {
+      "id": 131,
+      "name": "CD61",
+      "aliases": [
+        "CD61",
+        "ITGB3"
+      ]
+    },
+    {
+      "id": 132,
+      "name": "S100",
+      "aliases": [
+        "S100"
+      ]
+    },
+    {
+      "id": 133,
+      "name": "CD19",
+      "aliases": [
+        "CD19"
+      ]
+    },
+    {
+      "id": 134,
+      "name": "CD14",
+      "aliases": [
+        "CD14"
+      ]
+    },
+    {
+      "id": 135,
+      "name": "SARS-CoV-2 NP",
+      "aliases": [
+        "SARS-CoV-2 (NP)",
+        "SARS CoV 2 NP",
+        "SARS-CoV-2 nucleocapsid protein"
+      ]
+    }
+  ],
+  "auto_markers": [
+    "53BP1", "AGR2", "ALK", "APOE", "AR", "ASCL1", "ASCL2", "ATP1B1", "ATRX", "Actin",
+    "BACH1", "BCA1", "BEST4", "BMI", "BMI1", "BMP4", "BMP7", "BMX", "Bap1", "C1QC",
+    "CA1", "CA7", "CACNA1C", "CAV1", "CC3", "CCL2", "CCR2", "CCR7", "CD105", "CD107a",
+    "CD133", "CD169", "CD24", "CD244", "CD247", "CD320NKP46", "CD33", "CD36", "CD47", "CD58",
+    "CD63", "CD90", "CDH17", "CDH19", "CDX1", "CEA", "CGA", "CHGA", "CK8/18", "CLDN1",
+    "CLDN4", "CLSTN2", "COL6A1", "COL6A2", "COX2", "COX6c", "CSF1R", "CTLA4", "CTNNA2", "CX3CR1",
+    "ColI", "Collagen", "CoxIV", "Cytochrome C", "DC", "DCLAMP", "DES", "EOMES", "ER", "ERBB4",
+    "ERK-1", "FAP", "FGFR3", "FOSL1", "GD2", "GLUT", "GLUT1", "GP2", "GPC5", "GPX2",
+    "GYPC", "Galectin", "Glut1", "H2AX", "H3K27", "H3K27M", "H3K4", "HBEGF", "HDC", "HER2",
+    "HIF1A", "HLA", "HLA-A", "HLA-DPB1", "HLA-DRA", "HLACLASSI", "HLAII", "HNF4A", "Histone H3 Pho", "HistoneH3",
+    "IBA1", "IGLL5", "IL10", "IL1RAPL1", "ISL1", "KIF26B", "KRT20", "Keratin 17", "Keratin 18", "Keratin 19",
+    "L1CAM", "LEF1", "LGR5", "LIF", "LRRC26", "LaminB1", "MGP", "MHC class II antigen DPB1", "MHC class II antigen DRA", "MHCII",
+    "MITF", "MLPH", "MOG", "MPO", "MRP4", "MSH2", "MUC2", "MYCN", "MYH11", "Maspin",
+    "NEURL1", "NFP", "NGFR", "NKP46", "NLRP3", "NOVA2", "Nestin", "NeuN", "OLFM4", "OLIG1",
+    "OLIG2", "OTOP3", "P16", "P21", "P2RY12", "P63", "PAI", "PBX3", "PDE3A", "PDGFRA",
+    "PDGFRB", "PDX1", "PHOX2B", "PLAT/tPA", "PLXDC2", "PPP2R2C", "PR", "PolICTD", "RAB6B", "RAD51",
+    "REG4", "RETNLB", "RNA polymerase II CTD", "RORGT", "RSPO3", "RUNX1", "Rb", "S100A", "S100B", "SERCA2",
+    "SH2D1B", "SLC19A2", "SLC39A6", "SMARCC1", "SMOC2", "SOX10", "SOX17", "SOX2", "SOX4", "SOX9",
+    "SPP1", "SSR4", "STING", "SV2C", "SYP", "TAGLN", "TCF-1", "TCF1/TCF7", "TFF1", "TGFA",
+    "TMEM119", "TrKB", "VCAN", "WNT2", "WNT2B", "WNT5B", "ZEB1", "a-Amylase", "beta-integrin", "beta3-integrin",
+    "cPARP", "pAKT", "pERK", "pERK-1", "pH3", "pHH3", "pRB", "pRb", "pS6RP", "pSTAT3", "pTBK1"
+  ]
+}

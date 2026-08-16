@@ -1,0 +1,24 @@
+{
+  "fluorescence-default": {
+    "fusion": "max",
+    "threshold_percentile": 50.0,
+    "min_signal": 8.0,
+    "blur_sigma": 4.0,
+    "close_radius": 20,
+    "open_radius": 2,
+    "dilate_radius": 3,
+    "min_component_area_fraction": 0.001,
+    "min_foreground_fraction": 0.1
+  },
+  "fluorescence-recall": {
+    "fusion": "max",
+    "threshold_percentile": 35.0,
+    "min_signal": 5.0,
+    "blur_sigma": 4.0,
+    "close_radius": 12,
+    "open_radius": 0,
+    "dilate_radius": 3,
+    "min_component_area_fraction": 0.0002,
+    "min_foreground_fraction": 0.1
+  }
+}

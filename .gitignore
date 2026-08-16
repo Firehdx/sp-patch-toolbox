@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
+build/
+dist/
+outputs/
+*.h5
+*.hdf5
+*.ome.tif
+*.ome.tiff
+*.qptiff
+*.ims

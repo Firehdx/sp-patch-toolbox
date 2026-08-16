@@ -66,22 +66,23 @@ sppatch segment -- --manifest images.jsonl --data-root /data/sp --out-dir /data/
 ## Minimal reproducible example
 
 The repository deliberately contains no source images.  The following example
-uses a small, 25-channel OME-TIFF from an HTAN Level 2 collection **after you
-have obtained it through the source data portal and accepted its access terms**.
-It is a useful smoke test because it has OME channel names, `CYX` dimensions and
-is only about 3.4 MB in the source collection.
+uses a 2.29 GB, 27-channel whole-slide OME-TIFF from an HTAN Level 2 collection
+**after you have obtained it through the source data portal and accepted its
+access terms**.  It is a useful realistic test because its native layout is
+`CYX=(27, 15336, 18443)`, it has a five-level pyramid, and every OME channel is
+named.
 
 Expected relative path below `DATA_ROOT`:
 
 ```text
-HTAN/TNP-SARDANA/mIHC/Level_2/WD-76845-003_ROI01.ome.tif
+HTAN/Vanderbilt/CODEX/Level_2/S109TRF.ome.tiff
 ```
 
 ```bash
 export DATA_ROOT=/path/to/downloaded/sp-data
 mkdir -p example
 printf '%s\n' \
-  '{"path":"HTAN/TNP-SARDANA/mIHC/Level_2/WD-76845-003_ROI01.ome.tif","reader_type":"tiff"}' \
+  '{"path":"HTAN/Vanderbilt/CODEX/Level_2/S109TRF.ome.tiff","reader_type":"tiff"}' \
   > example/images.jsonl
 
 # Confirm that every channel needed for later patch reads can be decoded.

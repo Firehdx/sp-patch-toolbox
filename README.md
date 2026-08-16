@@ -10,10 +10,6 @@
 - generic, opt-in artifact and weak-signal handling options;
 - an agent harness that makes discovery, QA and exception handling auditable.
 
-It is intentionally **fail closed**: a decoding failure in one QPTIFF marker
-page invalidates the whole slide for patch generation. Pixels are never
-silently replaced, channels are never silently omitted, and an ROI rectangle is
-never itself treated as foreground.
 
 ## Repository layout
 

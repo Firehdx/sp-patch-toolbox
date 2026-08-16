@@ -49,7 +49,7 @@ def _decode_attr(value) -> str:
     return str(value)
 
 
-def _channels_from_immunoatlas_sidecar(path: Path) -> List[str]:
+def _channels_from_sidecar(path: Path) -> List[str]:
     try:
         data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
     except Exception:
@@ -404,10 +404,8 @@ class TiffImageReader(BaseImageReader):
         return int(self.series.shape[axes.index("Z")])
 
     def channel_names(self) -> List[str]:
-        # HTAPP best-focus CODEX TIFFs are ImageJ hyperstacks with TCYX axes:
-        # T indexes staining cycles and C indexes the four detector channels.
-        # The TIFF labels contain only repeated ``ch1``--``ch4``, so retain the
-        # unambiguous acquisition coordinates instead of inventing marker names.
+        # Some ImageJ hyperstacks have TCYX axes with repeated detector labels.
+        # Preserve acquisition coordinates instead of inventing marker names.
         if self.flatten_nonspatial_axes_as_channels and self.series.axes == "TCYX":
             timepoints, channels = (int(value) for value in self.series.shape[:2])
             return [
@@ -421,7 +419,7 @@ class TiffImageReader(BaseImageReader):
             if names:
                 return _fit_channel_names(names, self.channel_count)
         if self.sidecar_path:
-            names = _channels_from_immunoatlas_sidecar(self.sidecar_path)
+            names = _channels_from_sidecar(self.sidecar_path)
             if names:
                 return _fit_channel_names(names, self.channel_count)
         names = _channels_from_ome_xml(getattr(self.tf, "ome_metadata", None))
@@ -590,7 +588,7 @@ class TiffImageReader(BaseImageReader):
             raise RuntimeError(
                 f"{self.path} has axes={self.series.axes} shape={self.series.shape}. "
                 "This layout is not mapped to region-readable TIFF pages. Set allow_full_read=True "
-                "only for small images, or add a dataset-specific reader."
+                "only for small images, or add a format-specific reader."
             )
         arr = self._full_to_cyx(self.series.asarray(), self.series.axes)
         return arr[:, y0:y1, x0:x1]

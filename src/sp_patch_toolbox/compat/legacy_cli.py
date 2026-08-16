@@ -2,11 +2,11 @@ import argparse
 import json
 import re
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
 from .legacy_preprocessing import extract_sp_fluorescence_coords, extract_trident_coords, load_sp_coords_h5
+from ..profiles.defaults import DEFAULT_PROFILES
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -43,459 +43,6 @@ def infer_reader_type(path: str) -> str:
     if lower.endswith(".qptiff"):
         return "qptiff"
     return "tiff"
-
-
-def load_dfci_codex_panel(data_root: Path) -> list[str]:
-    """Load the one shared Minerva-derived channel order for DFCI CODEX."""
-    panel_path = data_root / "HTAN" / "DFCI" / "dfci_codex_panel.json"
-    try:
-        payload = json.loads(panel_path.read_text(encoding="utf-8"))
-        channel_names = [str(name) for name in payload["channel_names"]]
-    except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
-        raise RuntimeError(f"Could not load the DFCI CODEX channel panel {panel_path}: {error}") from error
-    if len(channel_names) != 59:
-        raise ValueError(f"Expected 59 DFCI CODEX channel names in {panel_path}, found {len(channel_names)}")
-    return channel_names
-
-
-_STANFORD_UNALIGNED_CHANNEL_METADATA = {
-    # The portal points these three image records to metadata files whose
-    # plane counts disagree with their actual TCYX dimensions.  Do not assign
-    # a truncated/shifted marker panel and do not process them as SP patches.
-    "A001-C-002.ome.tiff",
-    "A001-C-023.ome.tiff",
-    "CRC_TB15564.ome.tiff",
-}
-
-_STANFORD_MPP_FALLBACKS = {
-    # These four OME-TIFFs lack a physical-size field. Their acquisition
-    # dimensions match Stanford's ImageJ TCYX scans (all ~0.3774 mpp).
-    "B001-A-101.ome.tiff": 0.3774,
-    "B001-A-301.ome.tiff": 0.3774,
-    "B001-A-401.ome.tiff": 0.3774,
-    "F072B.ome.tiff": 0.3774,
-}
-
-
-def load_stanford_channel_names(data_root: Path, image_path: Path) -> list[str] | None:
-    """Return verified Synapse channel labels for Stanford's unnamed OME-TIFFs.
-
-    The HTAN portal exposes per-image channel files separately from the OME
-    XML.  The downloader writes both the raw files and their image mapping in
-    ``HTAN/Stanford/channel_metadata``.  Only use an override if its length
-    exactly matches the image's nonspatial plane count.
-    """
-    metadata_dir = data_root / "HTAN" / "Stanford" / "channel_metadata"
-    mapping_path = metadata_dir / "image_to_channel_metadata.json"
-    try:
-        mapping = json.loads(mapping_path.read_text(encoding="utf-8")) if mapping_path.exists() else []
-        record = next((item for item in mapping if item["image_file"] == image_path.name), None)
-        import tifffile
-
-        with tifffile.TiffFile(image_path) as handle:
-            series = handle.series[0]
-            expected = 1
-            for axis, size in zip(series.axes, series.shape):
-                if axis not in {"Y", "X", "Z"}:
-                    expected *= int(size)
-            if record is not None:
-                labels = [
-                    line.strip()
-                    for line in (metadata_dir / record["channel_metadata_file"]).read_text(encoding="utf-8").splitlines()
-                    if line.strip()
-                ]
-            else:
-                imagej = handle.imagej_metadata or {}
-                labels = [str(label).strip() for label in imagej.get("Labels", []) if str(label).strip()]
-                if not labels and handle.ome_metadata:
-                    pixels = ET.fromstring(handle.ome_metadata).find(".//{*}Pixels")
-                    ome_names = (
-                        [channel.get("Name") or channel.get("ID") for channel in pixels.findall("{*}Channel")]
-                        if pixels is not None
-                        else []
-                    )
-                    if len(ome_names) == expected:
-                        labels = ome_names
-                    elif series.axes == "TCYX" and len(ome_names) == int(series.shape[1]):
-                        # F072B stores only generic C1--C4 labels in OME, so
-                        # preserve their cycle coordinate rather than falsely
-                        # claiming marker identities.
-                        labels = [
-                            f"cycle_{timepoint + 1:02d}_{ome_name}"
-                            for timepoint in range(int(series.shape[0]))
-                            for ome_name in ome_names
-                        ]
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        raise RuntimeError(f"Could not load Stanford channel metadata for {image_path.name}: {error}") from error
-    if not labels:
-        return None
-    if len(labels) != expected:
-        raise ValueError(
-            f"Stanford metadata mismatch for {image_path.name}: {len(labels)} labels for {expected} image planes"
-        )
-    return labels
-
-
-def require_named_ome_channels(paths: list[Path], *, collection: str) -> None:
-    """Fail closed when a curated OME-TIFF collection lacks marker names.
-
-    OHSU contains a small set of RGB/unnamed TIFFs which were moved out of the
-    protein-imaging folders.  Do not silently turn any such file into C1/C2
-    placeholders: valid SP files must expose one non-empty OME Channel Name
-    for every native channel before a preset is allowed to process them.
-    """
-    import tifffile
-    import xml.etree.ElementTree as ET
-
-    invalid: list[str] = []
-    for path in paths:
-        try:
-            with tifffile.TiffFile(path) as handle:
-                ome_xml = handle.ome_metadata
-                pixels = ET.fromstring(ome_xml).find(".//{*}Pixels") if ome_xml else None
-                channel_names = (
-                    [channel.get("Name") for channel in pixels.findall("{*}Channel")]
-                    if pixels is not None
-                    else []
-                )
-                channel_count = int(pixels.get("SizeC", "0")) if pixels is not None else 0
-        except Exception as error:
-            invalid.append(f"{path.name} (could not read OME metadata: {error})")
-            continue
-        if channel_count <= 0 or len(channel_names) != channel_count or not all(
-            name and name.strip() for name in channel_names
-        ):
-            invalid.append(path.name)
-    if invalid:
-        examples = ", ".join(invalid[:8])
-        suffix = " ..." if len(invalid) > 8 else ""
-        raise ValueError(
-            f"{collection} contains {len(invalid)} OME-TIFF(s) without complete named channel metadata: "
-            f"{examples}{suffix}. Move them out of the SP Level_2 directory or supply their marker metadata first."
-        )
-
-
-def preset_entries(name: str, data_root: Path | None) -> list[dict]:
-    """Return curated raw-image entries for a named SP preprocessing preset.
-
-    A preset is deliberately narrower than a recursive manifest build: HTAN/BU
-    contains both H&E SVS images and MxIF WSIs, while this pipeline is for the
-    multichannel protein images only.  Keeping the selection here also makes
-    the mixed OME-TIFF/QPTIFF reader choice explicit and reproducible.
-    """
-    if data_root is None:
-        raise ValueError(f"--data-root is required for --dataset-preset {name!r}.")
-    if name == "htan-bu-mxif":
-        source_dir = data_root / "HTAN" / "BU" / "MxIF" / "Level_2"
-        if not source_dir.is_dir():
-            raise FileNotFoundError(f"HTAN BU MxIF directory does not exist: {source_dir}")
-        paths = sorted([*source_dir.glob("*.ome.tiff"), *source_dir.glob("*.qptiff")])
-        if not paths:
-            raise FileNotFoundError(f"No HTAN BU MxIF OME-TIFF/QPTIFF files found in {source_dir}")
-        return [
-            {
-                "dataset": "htan_bu_mxif",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "qptiff" if path.name.lower().endswith(".qptiff") else "tiff",
-            }
-            for path in paths
-        ]
-
-    if name == "htan-chop-codex":
-        source_dir = data_root / "HTAN" / "CHOP" / "CODEX" / "Level_2"
-        if not source_dir.is_dir():
-            raise FileNotFoundError(f"HTAN CHOP CODEX Level_2 directory does not exist: {source_dir}")
-        paths = sorted(source_dir.glob("*.tif"))
-        if not paths:
-            raise FileNotFoundError(f"No CHOP CODEX Level_2 OME-TIFF files found in {source_dir}")
-        return [
-            {
-                "dataset": "htan_chop_codex",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in paths
-        ]
-
-    if name == "htan-dfci":
-        codex_dir = data_root / "HTAN" / "DFCI" / "CODEX" / "Level_2"
-        mxif_dir = data_root / "HTAN" / "DFCI" / "MxIF" / "Level_2"
-        if not codex_dir.is_dir() or not mxif_dir.is_dir():
-            raise FileNotFoundError("HTAN DFCI CODEX/MxIF Level_2 directories do not both exist")
-        codex_paths = sorted(codex_dir.glob("*.tif"))
-        mxif_paths = sorted(mxif_dir.glob("*.tiff"))
-        if not codex_paths or not mxif_paths:
-            raise FileNotFoundError("No DFCI Level_2 CODEX or MxIF images found")
-        codex_channel_names = load_dfci_codex_panel(data_root)
-        return [
-            {
-                "dataset": "htan_dfci",
-                "path": path.relative_to(data_root).as_posix(),
-                # These ImageJ ZYX files are a 59-marker page stack, not a
-                # focal Z stack. The field name (2200 um / 4400 px) gives 0.5 mpp.
-                "reader_type": "tiff_z_as_channels",
-                "mpp": 0.5,
-                "channel_names": codex_channel_names,
-            }
-            for path in codex_paths
-        ] + [
-            {
-                "dataset": "htan_dfci",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in mxif_paths
-        ]
-
-    if name == "htan-hms":
-        # HMS contains H&E Level_2 whole-slide images and CyCIF Level_3 cell
-        # masks in addition to spatial-proteomics images.  Select only the
-        # two protein-imaging Level_2 collections.
-        cycif_dir = data_root / "HTAN" / "HMS" / "CyCIF" / "Level_2"
-        orion_dir = data_root / "HTAN" / "HMS" / "RareCyte_Orion" / "Level_2"
-        if not cycif_dir.is_dir() or not orion_dir.is_dir():
-            raise FileNotFoundError("HTAN HMS CyCIF/RareCyte_Orion Level_2 directories do not both exist")
-        cycif_paths = sorted([*cycif_dir.glob("*.ome.tif"), *cycif_dir.glob("*.ome.tiff")])
-        orion_paths = sorted([*orion_dir.glob("*.ome.tif"), *orion_dir.glob("*.ome.tiff")])
-        if not cycif_paths or not orion_paths:
-            raise FileNotFoundError("No HMS CyCIF or RareCyte_Orion Level_2 OME-TIFF images found")
-        return [
-            {
-                "dataset": "htan_hms_cycif",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in cycif_paths
-        ] + [
-            {
-                "dataset": "htan_hms_orion",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in orion_paths
-        ]
-
-    if name == "htan-htapp":
-        # HTAPP Level_2 contains both the complete TZCYX acquisition stacks
-        # and best-focus TCYX hyperstacks.  A *_Z<n>.tif filename identifies
-        # the latter: Z has already been selected, while all cycle x detector
-        # channels remain in the file and must be retained as output channels.
-        source_dir = data_root / "HTAN" / "HTAPP" / "CODEX" / "Level_2"
-        if not source_dir.is_dir():
-            raise FileNotFoundError(f"HTAPP CODEX Level_2 directory does not exist: {source_dir}")
-        paths = sorted(path for path in source_dir.glob("*_Z*.tif") if re.search(r"_Z\d+\.tif$", path.name, re.IGNORECASE))
-        if not paths:
-            raise FileNotFoundError(f"No HTAPP best-focus *_Z<n>.tif files found in {source_dir}")
-        return [
-            {
-                "dataset": "htan_htapp",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff_hyperstack",
-                # The HTAPP CODEX acquisition protocol reports 396 nm/px.
-                "mpp": 0.396,
-            }
-            for path in paths
-        ]
-
-    if name == "htan-wustl-codex":
-        # Keep this narrow: WUSTL also has H&E Level_2 images and CODEX
-        # segmentation/feature products at Levels 3 and 4.  Only these
-        # multichannel CODEX Level_2 OME-TIFFs are source images for patches.
-        source_dir = data_root / "HTAN" / "WUSTL" / "CODEX" / "Level_2"
-        if not source_dir.is_dir():
-            raise FileNotFoundError(f"WUSTL CODEX Level_2 directory does not exist: {source_dir}")
-        paths = sorted([*source_dir.glob("*.ome.tif"), *source_dir.glob("*.ome.tiff")])
-        if not paths:
-            raise FileNotFoundError(f"No WUSTL CODEX Level_2 OME-TIFF files found in {source_dir}")
-        return [
-            {
-                "dataset": "htan_wustl_codex",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in paths
-        ]
-
-    if name == "htan-vanderbilt":
-        # Select only spatial-proteomics Level_2 source imagery.  H&E Level_2
-        # files and all higher-level derivative products are deliberately not
-        # included.  CODEX is OME-CYX; Vanderbilt MxIF is a non-OME IYX page
-        # stack, so its image axis is flattened into channels by the native
-        # TIFF reader.  No dataset-specific foreground profile is attached.
-        codex_dir = data_root / "HTAN" / "Vanderbilt" / "CODEX" / "Level_2"
-        mxif_dir = data_root / "HTAN" / "Vanderbilt" / "MxIF" / "Level_2"
-        if not codex_dir.is_dir() or not mxif_dir.is_dir():
-            raise FileNotFoundError("HTAN Vanderbilt CODEX/MxIF Level_2 directories do not both exist")
-        codex_paths = sorted([*codex_dir.glob("*.ome.tif"), *codex_dir.glob("*.ome.tiff")])
-        mxif_paths = sorted([*mxif_dir.glob("*.tif"), *mxif_dir.glob("*.tiff")])
-        if not codex_paths or not mxif_paths:
-            raise FileNotFoundError("No Vanderbilt Level_2 CODEX or MxIF source images found")
-        return [
-            {
-                "dataset": "htan_vanderbilt_codex",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-                # Present in each CODEX OME-XML PhysicalSizeX/Y field.  Keep
-                # this per-modality value independent of a user-supplied MxIF
-                # --mpp override, because Vanderbilt MxIF TIFFs lack one.
-                "mpp": 0.5100762527233116,
-            }
-            for path in codex_paths
-        ] + [
-            {
-                "dataset": "htan_vanderbilt_mxif",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff_hyperstack",
-            }
-            for path in mxif_paths
-        ]
-
-    if name == "htan-ohsu":
-        # OHSU Level_2 holds both mIHC and CyCIF source OME-TIFFs.  The
-        # non-protein RGB/unnamed images are intentionally stored in HE and
-        # are excluded by selecting only these two SP directories.  Keep the
-        # validation here so a later misplaced file cannot silently enter the
-        # patch set with fabricated channel names.
-        mihc_dir = data_root / "HTAN" / "OHSU" / "mIHC" / "Level_2"
-        cycif_dir = data_root / "HTAN" / "OHSU" / "CyCIF" / "Level_2"
-        if not mihc_dir.is_dir() or not cycif_dir.is_dir():
-            raise FileNotFoundError("HTAN OHSU mIHC/CyCIF Level_2 directories do not both exist")
-        mihc_paths = sorted([*mihc_dir.glob("*.ome.tif"), *mihc_dir.glob("*.ome.tiff")])
-        cycif_paths = sorted([*cycif_dir.glob("*.ome.tif"), *cycif_dir.glob("*.ome.tiff")])
-        if not mihc_paths or not cycif_paths:
-            raise FileNotFoundError("No OHSU mIHC or CyCIF Level_2 OME-TIFF source images found")
-        require_named_ome_channels(mihc_paths, collection="HTAN OHSU mIHC Level_2")
-        require_named_ome_channels(cycif_paths, collection="HTAN OHSU CyCIF Level_2")
-        return [
-            {
-                "dataset": "htan_ohsu_mihc",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in mihc_paths
-        ] + [
-            {
-                "dataset": "htan_ohsu_cycif",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in cycif_paths
-        ]
-
-    if name == "htan-tnp-sardana":
-        # TNP-Sardana Level_2 contains protein-imaging CODEX, CyCIF and mIHC
-        # ROI files alongside H&E.  Select only the three SP modalities.  The
-        # three unnamed three-plane mIHC overviews were moved out of this
-        # directory; retain an explicit ROI filter so they cannot be admitted
-        # later by mistake.  Do not assign a dataset-specific segmentation
-        # profile: this preset intentionally uses the standard fluorescence
-        # settings.
-        root = data_root / "HTAN" / "TNP-SARDANA"
-        codex_dir = root / "CODEX" / "Level_2"
-        cycif_dir = root / "CyCIF" / "Level_2"
-        mihc_dir = root / "mIHC" / "Level_2"
-        if not codex_dir.is_dir() or not cycif_dir.is_dir() or not mihc_dir.is_dir():
-            raise FileNotFoundError("HTAN TNP-Sardana CODEX/CyCIF/mIHC Level_2 directories do not all exist")
-        codex_paths = sorted([*codex_dir.glob("*.ome.tif"), *codex_dir.glob("*.ome.tiff")])
-        cycif_paths = sorted([*cycif_dir.glob("*.ome.tif"), *cycif_dir.glob("*.ome.tiff")])
-        mihc_paths = sorted(
-            path
-            for path in [*mihc_dir.glob("*.ome.tif"), *mihc_dir.glob("*.ome.tiff")]
-            if "_ROI" in path.stem.upper()
-        )
-        if not codex_paths or not cycif_paths or not mihc_paths:
-            raise FileNotFoundError("No TNP-Sardana Level_2 CODEX, CyCIF, or named mIHC ROI OME-TIFF images found")
-        require_named_ome_channels(codex_paths, collection="HTAN TNP-Sardana CODEX Level_2")
-        require_named_ome_channels(cycif_paths, collection="HTAN TNP-Sardana CyCIF Level_2")
-        require_named_ome_channels(mihc_paths, collection="HTAN TNP-Sardana mIHC ROI Level_2")
-        return [
-            {
-                "dataset": "htan_tnp_sardana_codex",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in codex_paths
-        ] + [
-            {
-                "dataset": "htan_tnp_sardana_cycif",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in cycif_paths
-        ] + [
-            {
-                "dataset": "htan_tnp_sardana_mihc",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in mihc_paths
-        ]
-
-    if name == "htan-tnp-tma":
-        # TNP-TMA Level_2 consists solely of CyCIF and mIHC OME-TIFF source
-        # images.  Level_3 holds derived segmentation products and is
-        # deliberately not traversed.  Use the ordinary fluorescence profile;
-        # no cohort-specific foreground overrides belong in this preset.
-        root = data_root / "HTAN" / "TNP-TMA"
-        cycif_dir = root / "CyCIF" / "Level_2"
-        mihc_dir = root / "mIHC" / "Level_2"
-        if not cycif_dir.is_dir() or not mihc_dir.is_dir():
-            raise FileNotFoundError("HTAN TNP-TMA CyCIF/mIHC Level_2 directories do not both exist")
-        cycif_paths = sorted([*cycif_dir.glob("*.ome.tif"), *cycif_dir.glob("*.ome.tiff")])
-        mihc_paths = sorted([*mihc_dir.glob("*.ome.tif"), *mihc_dir.glob("*.ome.tiff")])
-        if not cycif_paths or not mihc_paths:
-            raise FileNotFoundError("No TNP-TMA CyCIF or mIHC Level_2 OME-TIFF source images found")
-        require_named_ome_channels(cycif_paths, collection="HTAN TNP-TMA CyCIF Level_2")
-        require_named_ome_channels(mihc_paths, collection="HTAN TNP-TMA mIHC Level_2")
-        return [
-            {
-                "dataset": "htan_tnp_tma_cycif",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in cycif_paths
-        ] + [
-            {
-                "dataset": "htan_tnp_tma_mihc",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "tiff",
-            }
-            for path in mihc_paths
-        ]
-
-    if name == "htan-stanford-codex":
-        # Stanford CODEX Level_2 contains 50 source images.  Thirteen images
-        # without OME/ImageJ names have now been resolved from HTAN's linked
-        # Synapse channel metadata. Three other OME-TIFFs point to metadata
-        # with a mismatched plane count and are excluded rather than guessed.
-        source_dir = data_root / "HTAN" / "Stanford" / "CODEX" / "Level_2"
-        if not source_dir.is_dir():
-            raise FileNotFoundError(f"HTAN Stanford CODEX Level_2 directory does not exist: {source_dir}")
-        paths = sorted([*source_dir.glob("*.tif"), *source_dir.glob("*.tiff")])
-        paths = [path for path in paths if path.name not in _STANFORD_UNALIGNED_CHANNEL_METADATA]
-        if len(paths) != 47:
-            raise ValueError(
-                f"Expected 47 Stanford CODEX images after excluding the three unaligned metadata files, found {len(paths)}"
-            )
-        entries = []
-        for path in paths:
-            channel_names = load_stanford_channel_names(data_root, path)
-            entry = {
-                "dataset": "htan_stanford_codex",
-                "path": path.relative_to(data_root).as_posix(),
-                # All Stanford source files are TCYX/CYX fluorescence stacks.
-                # Flatten every nonspatial plane so ImageJ and Synapse labels
-                # remain aligned with the patch reader and thumbnail fusion.
-                "reader_type": "tiff_hyperstack",
-            }
-            if channel_names is not None:
-                entry["channel_names"] = channel_names
-            if path.name in _STANFORD_MPP_FALLBACKS:
-                entry["mpp"] = _STANFORD_MPP_FALLBACKS[path.name]
-            entries.append(entry)
-        return entries
-
-    raise ValueError(f"Unsupported dataset preset {name!r}.")
 
 
 def parse_thumbnail_regions(values: list[str]) -> list[tuple[float, float, float, float]]:
@@ -711,12 +258,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Segment foreground tissue and write 224x224 patch coordinate HDF5 files.")
     parser.add_argument("--manifest", default=None, help="Input image manifest JSONL from build_manifest.py.")
     parser.add_argument("--image", default=None, help="Process one image instead of a manifest.")
-    parser.add_argument(
-        "--dataset-preset",
-        choices=["htan-bu-mxif", "htan-chop-codex", "htan-dfci", "htan-hms", "htan-htapp", "htan-wustl-codex", "htan-vanderbilt", "htan-ohsu", "htan-stanford-codex", "htan-tnp-sardana", "htan-tnp-tma"],
-        default=None,
-        help="Curated raw-image selection for reviewed HTAN Level_2 collections.",
-    )
     parser.add_argument("--data-root", default=None)
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--registry", default=str(Path(__file__).resolve().parents[1] / "configs" / "marker_registry.json"))
@@ -724,6 +265,12 @@ def main() -> None:
     parser.add_argument("--method", choices=["sp-fluorescence", "trident-hest", "trident-otsu", "trident-grandqc"], default="sp-fluorescence")
     parser.add_argument("--reader-type", default=None, choices=["tiff", "tiff_hyperstack", "qptiff", "ims", "openslide_rgb"])
     parser.add_argument("--dataset-name", default=None)
+    parser.add_argument(
+        "--foreground-preset",
+        choices=sorted(DEFAULT_PROFILES),
+        default="fluorescence-default",
+        help="Generic image-condition preset; it never inspects dataset or filename.",
+    )
     parser.add_argument("--patch-size", type=int, default=224)
     parser.add_argument("--overlap", type=int, default=0)
     parser.add_argument("--min-foreground-fraction", type=float, default=0.10)
@@ -809,13 +356,22 @@ def main() -> None:
         help="Minimum 8-bit threshold used only inside each QPTIFF maximum-fusion ROI.",
     )
     args = parser.parse_args()
+    profile = DEFAULT_PROFILES[args.foreground_preset]
+    args.sp_threshold_percentile = profile.threshold_percentile
+    args.sp_min_signal = profile.min_signal
+    args.sp_blur_sigma = profile.blur_sigma
+    args.sp_close_radius = profile.close_radius
+    args.sp_open_radius = profile.open_radius
+    args.sp_dilate_radius = profile.dilate_radius
+    args.sp_min_component_area_fraction = profile.min_component_area_fraction
+    args.min_foreground_fraction = profile.min_foreground_fraction
     args.sp_exclude_thumbnail_region = parse_thumbnail_regions(args.sp_exclude_thumbnail_region)
     args.sp_force_include_thumbnail_region = parse_thumbnail_regions(args.sp_force_include_thumbnail_region)
     args.sp_max_fusion_thumbnail_region = parse_thumbnail_regions(args.sp_max_fusion_thumbnail_region)
 
-    input_count = sum(bool(value) for value in [args.manifest, args.image, args.dataset_preset])
+    input_count = sum(bool(value) for value in [args.manifest, args.image])
     if input_count != 1:
-        raise ValueError("Pass exactly one of --manifest, --image, or --dataset-preset.")
+        raise ValueError("Pass exactly one of --manifest or --image.")
     if (args.only_missing_qc_contours or args.only_existing_qc_contours) and not args.qc_contours_dir:
         raise ValueError("Pass --qc-contours-dir when using QC contour filters.")
 
@@ -825,9 +381,6 @@ def main() -> None:
 
     if args.manifest:
         rows = load_jsonl(Path(args.manifest))
-    elif args.dataset_preset:
-        rows = preset_entries(args.dataset_preset, data_root)
-        print(f"Selected {len(rows)} image(s) from dataset preset {args.dataset_preset!r}.")
     else:
         rows = [make_single_entry(args)]
     before_filter = len(rows)

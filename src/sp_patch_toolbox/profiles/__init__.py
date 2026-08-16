@@ -1,5 +1,5 @@
-"""Generic profiles and reviewed, explicit dataset-specific corrections."""
+"""Generic, data-agnostic segmentation presets."""
 
-from .reviewed_cases import REVIEWED_CASE_GROUPS, reviewed_case_summary
+from .defaults import DEFAULT_PROFILES
 
-__all__ = ["REVIEWED_CASE_GROUPS", "reviewed_case_summary"]
+__all__ = ["DEFAULT_PROFILES"]

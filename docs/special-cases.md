@@ -2,10 +2,10 @@
 
 ## Principle
 
-Generic segmentation should solve normal images. A reviewed exception is a
+Generic segmentation should solve normal images. An exceptional image is a
 small, documented operation layered on top of an already valid global mask.
-Every reviewed rule in `profiles.reviewed_cases` corresponds to a named image
-or explicit dataset profile from prior QC; it is not a heuristic template.
+Every correction must be explicitly supplied with the run configuration; it
+must not be inferred from a filename, directory, collection or database.
 
 | Failure mode | Evidence | Safe response |
 |---|---|---|
@@ -23,13 +23,13 @@ For each new exception, keep:
 
 1. input slide path and checksum/mtime;
 2. original QC overlay and an annotated reference;
-3. profile and normalized polygon/ROI parameters;
+3. selected generic profile and normalized polygon/ROI parameters;
 4. new QC overlay, coordinate count before/after and reasoning;
 5. a statement that no unrelated slide is affected.
 
-## Existing reviewed groups
+## Generic presets
 
-The catalogue contains corrections for DFCI, WUSTL, Vanderbilt, OHSU, Stanford,
-TNP-Sardana, TNP-TMA and HMS. Use `sppatch profiles` to enumerate groups. The
-exact values are preserved in the compatibility layer during the migration and
-are checked by tests so that a refactor cannot silently delete them.
+Use `sppatch profiles` to list the available generic presets. They describe
+observable image conditions—such as weak sparse tissue, diffuse background or
+grid-like artifacts—rather than a source collection. Apply them only after
+reviewing representative QC thumbnails.

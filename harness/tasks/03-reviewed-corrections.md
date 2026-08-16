@@ -1,4 +1,4 @@
-# Task 03 — Reviewed local corrections
+# Task 03 — Explicit local corrections
 
 ## When this task is allowed
 
@@ -23,5 +23,5 @@ annotation or unambiguous written ROI description.
 ## Deliverables
 
 For every correction: source slide, QC reference, normalized geometry, before /
-after overlay, parameter values, rationale and rerun command. Add it to the
-reviewed-case registry only after acceptance.
+after overlay, parameter values, rationale and rerun command. Store it in the
+run manifest only after acceptance; never create a filename-based registry.

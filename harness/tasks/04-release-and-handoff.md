@@ -5,8 +5,8 @@
 - input manifest and strict integrity JSON;
 - output coordinate manifest, with failures retained explicitly;
 - marker registry version and any external panel metadata used;
-- per-dataset patch/slide/channel totals;
-- reviewed-case change log and QC references;
+- per-manifest patch/slide/channel totals;
+- explicit-correction change log and QC references;
 - exact command(s), package commit and environment details.
 
 ## Final checks

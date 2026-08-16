@@ -12,38 +12,20 @@ from ..metadata.markers import MarkerRegistry
 from ..coordinates import load_sp_coords_h5
 from ..io.readers import open_image_reader
 
-
-BAD_IMAGE_REL_PATHS = {
-    "immunoatlas/NOLN/210920-1/NOLN21102/A01/download/NOLN21102_A01.tif",
-    "immunoatlas/NOLN/210920-1/NOLN21109/A01/download/NOLN21109_A01.tif",
-    "immunoatlas/NOLN/210920-1/NOLN21111/A01/download/NOLN21111_A01.tif",
-    "immunoatlas/NOLN/210920-1/NOLN21113/A01/download/NOLN21113_A01.tif",
-    "immunoatlas/NOLN/210920-1/NOLN21121/A01/download/NOLN21121_A01.tif",
-    "immunoatlas/NOLN/210920-1/NOLN21126/A01/download/NOLN21126_A01.tif",
-    "immunoatlas/NOLN/210920-1/NOLN21157/A01/download/NOLN21157_A01.tif",
-    "immunoatlas/NOLN/210920-1/NOLN21163/A01/download/NOLN21163_A01.tif",
-}
-
-
-def _is_bad_image_row(row: Dict[str, Any]) -> bool:
-    path = str(row.get("path", "")).replace("\\", "/")
-    return any(path == bad or path.endswith("/" + bad) for bad in BAD_IMAGE_REL_PATHS)
-
-
 def load_manifest(path: str | Path) -> List[Dict[str, Any]]:
     p = Path(path)
     text = p.read_text(encoding="utf-8")
     if p.suffix.lower() == ".json":
         payload = json.loads(text)
         if isinstance(payload, dict):
-            return [row for row in payload.get("images", []) if not _is_bad_image_row(row)]
-        return [row for row in payload if not _is_bad_image_row(row)]
+            return list(payload.get("images", []))
+        return list(payload)
     rows = []
     for line in text.splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             row = json.loads(line)
-            if "error" not in row and not _is_bad_image_row(row):
+            if "error" not in row:
                 rows.append(row)
     return rows
 

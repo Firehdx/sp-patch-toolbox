@@ -7,7 +7,7 @@
 - fluorescence foreground segmentation from all available biological channels;
 - TRIDENT-compatible contour, coordinate and patch-coordinate HDF5 generation;
 - strict source-integrity gates before segmentation;
-- explicit reviewed corrections for exceptional slides, kept separate from the generic algorithm;
+- generic, opt-in artifact and weak-signal handling options;
 - an agent harness that makes discovery, QA and exception handling auditable.
 
 It is intentionally **fail closed**: a decoding failure in one QPTIFF marker
@@ -25,7 +25,7 @@ src/sp_patch_toolbox/
   coordinates.py coordinate-HDF5 and extraction API
   training/     lazy pixel reader and variable-channel batch collation
   pipeline/     manifests and strict integrity preflight
-  profiles/     generic presets and reviewed exceptional-case catalogue
+  profiles/     generic segmentation presets
   compat/       validated legacy implementation during incremental migration
 harness/        instructions, task cards and acceptance criteria for agents
 docs/           architecture, modality and special-case guidance
@@ -51,9 +51,9 @@ TRIDENT.
 2. Run a strict integrity gate before segmentation.
 3. Segment one representative slide with the generic profile and inspect the
    thumbnail, mask, contour and coordinates.
-4. Process the collection with no special cases enabled.
-5. Add a reviewed local correction only after saving QA evidence and limiting
-   its scope to named slide(s) and normalized ROI(s).
+4. Process the collection with the selected generic profile.
+5. For an exceptional image, save QA evidence and pass explicit ROI/polygon
+   parameters in its manifest or invocation; never add filename branches.
 
 ```bash
 sppatch integrity --manifest images.jsonl --data-root /data/sp --out integrity.json
@@ -93,10 +93,9 @@ good output.
 
 ## Migration status
 
-The validated implementation is retained under `compat/` first so every
-existing dataset preset and reviewed correction remains runnable. Public modules
-are the stable migration boundary. New work must go into the public modules or
-configuration; do not add new dataset-specific branches to `compat/`.
+The validated implementation is retained under `compat/` while public modules
+are migrated. New work must go into the public modules or configuration; do
+not add source-specific branches to `compat/`.
 
 See [`docs/architecture.md`](docs/architecture.md) and
 [`docs/special-cases.md`](docs/special-cases.md).

@@ -19,7 +19,7 @@ are more important than throughput.
 5. Save/inspect QC artifacts before declaring a segmentation successful:
    thumbnail, binary mask, contour overlay, GeoJSON and coordinate count.
 6. Prefer a small representative run before an entire dataset. Preserve
-   successful outputs when retrying failed or reviewed slides.
+   successful outputs when retrying failed or manually corrected slides.
 
 ## Required task sequence
 
@@ -35,4 +35,4 @@ Follow these cards in order:
 A run is complete only when the manifest, HDF5 output, channel/marker metadata,
 QC artifacts, integrity report and exception log agree on the same slide set.
 Do not describe an empty mask, decoder failure, unresolved channel names or an
-unreviewed special-case correction as successful.
+an undocumented special-case correction as successful.

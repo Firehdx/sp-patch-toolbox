@@ -10,63 +10,6 @@ import h5py
 import numpy as np
 
 from ..io.readers import open_image_reader, read_tiff_page_region
-from ..profiles.legacy_constants import (
-    _DFCI_CODEX_PERIPHERAL_ARTIFACT_STEMS,
-    _DFCI_EXTRA_RECALL_STEMS,
-    _DFCI_MAX_FUSION_RESCUE_REGIONS,
-    _DFCI_MXIF_FRAME_ARTIFACT_STEMS,
-    _DFCI_RECALL_RESCUE_STEMS,
-    _HMS_CYCIF_LOCAL_EXCLUDED_REGIONS,
-    _HMS_CYCIF_LOCAL_MAX_RESCUE_REGIONS,
-    _HMS_CYCIF_RECALL_STEMS,
-    _HMS_CYCIF_STRICT_REGIONS,
-    _HMS_ORION_COMPONENT_CONCAVITY_FILL,
-    _HMS_ORION_FORCED_FOREGROUND_POLYGONS,
-    _HMS_ORION_LOCAL_BACKGROUND_RESEGMENTATION,
-    _HMS_ORION_LOCAL_BACKGROUND_RESEGMENTATION_PROFILES,
-    _HMS_ORION_STRICT_PROFILES,
-    _HMS_ORION_WEAK_TISSUE_RECOVERY_PROFILES,
-    _HMS_ORION_WEAK_TISSUE_REGIONS,
-    _OHSU_CYCIF_ARTIFACT_CLEANUP_STEMS,
-    _OHSU_CYCIF_EMPTY_MASK_RECALL_STEMS,
-    _OHSU_CYCIF_EXTRA_STRICT_STEMS,
-    _OHSU_CYCIF_LOCAL_ARTIFACT_EXCLUSIONS,
-    _OHSU_CYCIF_LOCAL_ARTIFACT_POLYGONS,
-    _OHSU_CYCIF_LOCAL_RECALL_STEMS,
-    _OHSU_CYCIF_MAX_FUSION_PROFILES,
-    _OHSU_CYCIF_MAX_FUSION_REPLACE_STEMS,
-    _OHSU_CYCIF_MAX_FUSION_RESCUE_REGIONS,
-    _OHSU_CYCIF_WEAK_TISSUE_REGIONS,
-    _STANFORD_EXTRA_RECALL_STEMS,
-    _STANFORD_EXTRA_STRICT_ARTIFACT_STEMS,
-    _STANFORD_FINAL_FORCED_FOREGROUND_POLYGONS,
-    _STANFORD_LOCAL_MAX_RESCUE_PROFILES,
-    _STANFORD_LOCAL_MAX_RESCUE_REGIONS,
-    _STANFORD_MID_RECALL_STEMS,
-    _STANFORD_RECALL_STEMS,
-    _STANFORD_STRICT_ARTIFACT_STEMS,
-    _STANFORD_WEAK_SIGNAL_ARTIFACT_STEMS,
-    _STANFORD_WEAK_SIGNAL_STEMS,
-    _TNP_SARDANA_CYCIF_EXTRA_STRICT_STEMS,
-    _TNP_SARDANA_CYCIF_RECALL_STEMS,
-    _TNP_SARDANA_CYCIF_STRICT_STEMS,
-    _TNP_TMA_CYCIF_DENOISE_STEMS,
-    _TNP_TMA_CYCIF_FINAL_FORCED_FOREGROUND_POLYGONS,
-    _TNP_TMA_CYCIF_RECALL_STEMS,
-    _TNP_TMA_CYCIF_STRICT_STEMS,
-    _TNP_TMA_MIHC_BUBBLE_POLYGONS,
-    _TNP_TMA_MIHC_BUBBLE_STEMS,
-    _TNP_TMA_MIHC_EXTRA_STRICT_DENOISE_STEMS,
-    _TNP_TMA_MIHC_STRICT_DENOISE_STEMS,
-    _VANDERBILT_CODEX_THIN_STRIP_CLEANUP_STEMS,
-    _WUSTL_FORCED_FOREGROUND_POLYGONS,
-    _WUSTL_LOCAL_EXCLUDED_REGIONS,
-    _WUSTL_LOCAL_MAX_RESCUE_REGIONS,
-    _WUSTL_LOW_PERCENTILE_RECALL_STEMS,
-    _WUSTL_MAX_FUSION_RECALL_STEMS,
-    _WUSTL_THIN_GRID_CLEANUP_STEMS,
-)
-
 
 def _as_jsonable(value):
     if isinstance(value, Path):
@@ -190,11 +133,9 @@ def infer_mpp_from_image_metadata(image_path: str | Path) -> Optional[float]:
                     if value > 0:
                         return value
 
-            # Stanford's ImageJ TCYX files have no OME PhysicalSizeX, but
-            # retain an X/YResolution ratio and declare ``unit=mm`` in the
-            # ImageJ description.  TIFF's ResolutionUnit is NONE in these
-            # exports, so use that explicit ImageJ unit rather than treating
-            # the raw ratio as pixels/inch.
+            # Some ImageJ TCYX files lack OME PhysicalSizeX but retain an
+            # X/YResolution ratio and declare ``unit=mm`` in the description.
+            # Prefer that explicit unit over a raw ResolutionUnit of NONE.
             page = tf.pages[0] if tf.pages else None
             if page is not None:
                 x_resolution = page.tags.get("XResolution")
@@ -368,7 +309,7 @@ def _read_channel_metadata(
     finally:
         sp_reader.close()
     # Raw reader names are preserved.  Mapping a dye or filter label to a
-    # biological marker is dataset-specific curation, not preprocessing.
+    # biological marker is external curation, not preprocessing.
     return channel_names, list(channel_names)
 
 
@@ -864,7 +805,7 @@ def replace_roi_max_fusion_foreground(
 ) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
     """Re-segment selected ROIs and replace only those mask pixels.
 
-    Used for reviewed false-positive regions.  Unlike an exclusion rectangle,
+    Used for explicit false-positive regions. Unlike an exclusion rectangle,
     each selected region is independently segmented from the fluorescence
     signal, then replaces (rather than clears) just that local part of mask.
     """
@@ -920,7 +861,7 @@ def fill_roi_component_concavities(
     regions: Sequence[Tuple[float, float, float, float]],
     min_component_area_fraction: float = 0.01,
 ) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
-    """Fill only concavities of detected tissue components inside reviewed ROIs.
+    """Fill only concavities of detected tissue components inside explicit ROIs.
 
     This is a shape-based recovery for a documented weak-signal U-shaped gap.
     It takes the convex hull of each sufficiently large detected connected
@@ -970,7 +911,7 @@ def force_thumbnail_polygons(
     *,
     polygons: Sequence[Sequence[Tuple[float, float]]],
 ) -> Tuple[np.ndarray, List[List[List[float]]]]:
-    """Apply explicitly reviewed polygonal foreground corrections."""
+    """Apply explicitly supplied polygonal foreground corrections."""
     import cv2
 
     base = (np.asarray(mask) > 0).astype(np.uint8)
@@ -1000,10 +941,6 @@ def _safe_file_stem(path: str | Path) -> str:
     name = re.sub(r"[^A-Za-z0-9_.-]+", "_", name)
     return name.strip("_") or "sample"
 
-
-# These DFCI files were manually reviewed after the first dataset-wide pass.
-# Keep the exception list explicit: the default profile remains unchanged for
-# all unreviewed slides.
 
 def _channel_sort_key(name: str) -> int:
     match = re.search(r"(\d+)$", name)
@@ -1348,14 +1285,10 @@ def _read_ome_tiff_projection_thumbnail(
 ) -> Tuple[np.ndarray, Tuple[int, int], int, Dict[str, Any], Optional[np.ndarray]]:
     """Read a multi-marker OME-TIFF thumbnail without relying on OpenSlide.
 
-    OME-TIFFs in idr0161 use compression unsupported by OpenSlide.  At a
-    stored low-resolution pyramid level they are small enough to read through
-    tifffile directly.  We max-project Z per marker, robust-normalize each
-    marker separately. RareCyte panels explicitly include AF and Blank
-    technical channels; their diffuse dye residue remains bright in many
-    marker images, so those panels normally use the median of biological
-    markers. Sparse panels can explicitly choose upper-quantile fusion after
-    AF/Blank removal, preserving tissue visible in only a few markers.
+    This avoids relying on OpenSlide when TIFF compression or layout is not
+    supported. At a stored low-resolution pyramid level, planes can be read
+    directly with tifffile, max-projected over Z and robust-normalized. AF,
+    blank and control planes are excluded before fusion.
     """
     if not 0.0 <= float(fusion_percentile) <= 100.0:
         raise ValueError(f"OME-TIFF fusion percentile must be in [0, 100], got {fusion_percentile}")
@@ -1462,8 +1395,7 @@ def _read_ome_tiff_projection_thumbnail(
                     for axis, coordinate in zip(channel_axes, channel_coordinate):
                         selection[axis] = int(coordinate)
                     # Preserve a non-channel Z axis long enough to max-project
-                    # it. Stanford TCYX has no Z, but this keeps the fallback
-                    # correct for a contiguous TCZYX stack as well.
+                    # it, which also handles contiguous TCZYX stacks.
                     for axis, name in enumerate(axes):
                         if name == "Z" and axis not in channel_axes:
                             selection[axis] = slice(None)
@@ -1508,10 +1440,8 @@ def _read_ome_tiff_projection_thumbnail(
                 # tissue, just like AF and Blank channels do in Orion panels.
                 if is_af or "blank" in text or "control" in text:
                     technical_indices.append(index)
-                # DFCI CODEX names its repeated nuclear counterstains simply
-                # "DNA". Treat that as a nucleus channel too; otherwise its
-                # broad marker fusion can turn weak scanner background into a
-                # foreground component with no cellular support.
+                # Treat common nuclear labels as a nucleus channel for optional
+                # support gating.
                 if any(token in text for token in ("nucleus", "hoechst", "dapi", "dna")):
                     nucleus_indices.append(index)
             usable_indices = [index for index in usable_indices if index not in technical_indices]
@@ -1553,17 +1483,6 @@ def _read_ome_tiff_projection_thumbnail(
         "thumbnail_technical_channel_indices": technical_indices,
         "thumbnail_nucleus_channel_indices": [int(index) for index in nucleus_indices],
     }, nucleus_thumbnail_rgb
-
-
-def _paired_ome_panel_path(image_path: str | Path) -> Optional[Path]:
-    """Return the panel-1/panel-2 peer path for an HTAN-style OME-TIFF."""
-    image_path = Path(image_path)
-    match = re.fullmatch(r"(.+)_panel([12])\.ome\.tiff", image_path.name, flags=re.IGNORECASE)
-    if match is None:
-        return None
-    peer_panel = "2" if match.group(2) == "1" else "1"
-    peer = image_path.with_name(f"{match.group(1)}_panel{peer_panel}.ome.tiff")
-    return peer if peer.is_file() else None
 
 
 def _patch_coords_from_foreground_mask(
@@ -1835,8 +1754,6 @@ def _extract_native_ome_tiff_sp_fluorescence_coords(
     nucleus_gate_threshold_percentile: float = 70.0,
     nucleus_gate_dilation_radius: int = 25,
     apply_nucleus_seed_gate: bool = True,
-    panel_peer_reference: bool = False,
-    panel_peer_dilation_radius: int = 0,
     remove_small_edge_artifacts: bool = False,
     small_edge_max_area_fraction: float = 0.005,
     small_edge_margin_fraction: float = 0.15,
@@ -1989,7 +1906,7 @@ def _extract_native_ome_tiff_sp_fluorescence_coords(
         mask = (((mask > 0) | recovered).astype(np.uint8) * 255)
     applied_strict_regions = []
     if strict_threshold_regions:
-        # Apply this after any weak-tissue recovery so the final reviewed
+        # Apply this after any weak-tissue recovery so the final explicit
         # region cannot be repopulated by a low-signal compensation pass.
         strict_mask, _ = make_sp_fluorescence_foreground(
             thumbnail_rgb,
@@ -2021,7 +1938,7 @@ def _extract_native_ome_tiff_sp_fluorescence_coords(
     local_background_resegmentation = []
     applied_forced_foreground_polygons = []
     if post_strict_recovery_regions or local_background_resegmentation_regions or forced_foreground_polygons:
-        # User-reviewed weak tissue is restored only after strict cleanup, so
+        # User-supplied weak tissue is restored only after strict cleanup, so
         # the recovery cannot be erased by an image-wide artifact threshold.
         recovery_thumbnail_rgb, _, _, _, _ = _read_ome_tiff_projection_thumbnail(
             image_path,
@@ -2079,7 +1996,7 @@ def _extract_native_ome_tiff_sp_fluorescence_coords(
             )
     applied_excluded_regions = []
     if excluded_thumbnail_regions:
-        # Apply reviewed exclusions after every recovery pass so a local
+        # Apply explicit exclusions after every recovery pass so a local
         # rescue cannot reintroduce a known scanner-residue region.
         height, width = mask.shape
         for region in excluded_thumbnail_regions:
@@ -2116,8 +2033,8 @@ def _extract_native_ome_tiff_sp_fluorescence_coords(
         mask = (binary * 255).astype(np.uint8)
     edge_cleanup_pixels_removed = 0
     if edge_cleanup_fusion_percentile is not None:
-        # A max-marker fusion is needed to reveal weak WUSTL stroma, but it
-        # can also light up the staircase scan frame.  Re-segment only the
+        # A max-marker fusion can reveal weak stroma, but it may also light up
+        # a stitched scan frame. Re-segment only the
         # outer band with the conservative fusion and subtract unsupported
         # max-fusion pixels; this never force-adds a border rectangle.
         conservative_thumbnail_rgb, _, _, _, _ = _read_ome_tiff_projection_thumbnail(
@@ -2232,75 +2149,13 @@ def _extract_native_ome_tiff_sp_fluorescence_coords(
     final_forced_foreground = []
     if final_forced_foreground_polygons:
         # Apply after every artifact-removal stage. This is reserved for
-        # explicitly reviewed all-tissue regions whose foreground status must
+        # explicitly supplied all-tissue regions whose foreground status must
         # not be undone by generic cleanup.
         mask, final_forced_foreground = force_thumbnail_polygons(
             mask,
             polygons=final_forced_foreground_polygons,
         )
     mask_attrs["final_forced_foreground_polygons"] = final_forced_foreground
-    peer_attrs: Dict[str, Any] = {
-        "panel_peer_reference_requested": bool(panel_peer_reference),
-        "panel_peer_reference_applied": False,
-        "panel_peer_reference_path": None,
-        "panel_peer_foreground_fraction": None,
-        "panel_peer_pixels_added": 0,
-        "panel_peer_dilation_radius": int(panel_peer_dilation_radius),
-    }
-    peer_path = _paired_ome_panel_path(image_path) if panel_peer_reference else None
-    # Both HTAN panels use the same physical coordinate frame, or a closely
-    # matching serial-section frame. Resize by their true IFD dimensions and
-    # take the union of independently segmented masks, with an optional small
-    # peer-mask buffer for registration/section differences. This propagates
-    # tissue-shaped evidence from the paired panel; it never adds a rectangle.
-    if peer_path is not None:
-        import cv2
-
-        peer_thumbnail_rgb, _, _, _, _ = _read_ome_tiff_projection_thumbnail(
-            peer_path,
-            thumbnail_max_size=thumbnail_max_size,
-            fusion_percentile=fusion_percentile,
-            channel_names=channel_names,
-            technical_channel_fusion=technical_channel_fusion,
-            force_median_marker_fusion=force_median_marker_fusion,
-            include_nucleus_thumbnail=False,
-            treat_z_as_channels=treat_z_as_channels,
-            flatten_nonspatial_axes_as_channels=flatten_nonspatial_axes_as_channels,
-        )
-        peer_mask, _ = make_sp_fluorescence_foreground(
-            peer_thumbnail_rgb,
-            threshold_percentile=threshold_percentile,
-            min_signal=min_signal,
-            blur_sigma=blur_sigma,
-            close_radius=close_radius,
-            open_radius=open_radius,
-            dilate_radius=dilate_radius,
-            min_component_area_fraction=min_component_area_fraction,
-            max_hole_area_fraction=max_hole_area_fraction,
-        )
-        peer_resized = cv2.resize(
-            (peer_mask > 0).astype(np.uint8),
-            (mask.shape[1], mask.shape[0]),
-            interpolation=cv2.INTER_NEAREST,
-        )
-        panel_peer_dilation_radius = max(0, int(panel_peer_dilation_radius))
-        if panel_peer_dilation_radius:
-            peer_kernel = cv2.getStructuringElement(
-                cv2.MORPH_ELLIPSE,
-                (2 * panel_peer_dilation_radius + 1, 2 * panel_peer_dilation_radius + 1),
-            )
-            peer_resized = cv2.dilate(peer_resized, peer_kernel)
-        own_mask = mask > 0
-        mask = ((own_mask | (peer_resized > 0)).astype(np.uint8) * 255)
-        peer_attrs.update(
-            {
-                "panel_peer_reference_applied": True,
-                "panel_peer_reference_path": str(peer_path),
-                "panel_peer_foreground_fraction": float((peer_mask > 0).mean()),
-                "panel_peer_pixels_added": int(((~own_mask) & (peer_resized > 0)).sum()),
-            }
-        )
-    mask_attrs.update(peer_attrs)
     coords_xy, coord_attrs = _patch_coords_from_foreground_mask(
         mask,
         spatial_shape_yx=spatial_shape_yx,
@@ -2513,580 +2368,30 @@ def extract_sp_fluorescence_coords(
     )
 
     job_dir = Path(job_dir)
-    # BU has sparse MxIF marker panels: a median suppresses valid tissue when
-    # only DAPI plus one or two fluorophore channels carry signal. AF is still
-    # removed by the native readers; use a 75th-percentile fusion only for
-    # this dataset so the more artifact-conservative defaults remain intact.
-    is_htan_bu_mxif = str(dataset).strip().lower() == "htan_bu_mxif"
-    is_htan_chop_codex = str(dataset).strip().lower() == "htan_chop_codex"
-    is_htan_dfci = str(dataset).strip().lower() == "htan_dfci"
-    is_htan_hms_cycif = str(dataset).strip().lower() == "htan_hms_cycif"
-    is_htan_hms_orion = str(dataset).strip().lower() == "htan_hms_orion"
-    is_htan_wustl_codex = str(dataset).strip().lower() == "htan_wustl_codex"
-    is_htan_vanderbilt_codex = str(dataset).strip().lower() == "htan_vanderbilt_codex"
-    is_htan_ohsu_mihc = str(dataset).strip().lower() == "htan_ohsu_mihc"
-    is_htan_ohsu_cycif = str(dataset).strip().lower() == "htan_ohsu_cycif"
-    is_htan_stanford_codex = str(dataset).strip().lower() == "htan_stanford_codex"
-    is_htan_tnp_sardana_cycif = str(dataset).strip().lower() == "htan_tnp_sardana_cycif"
-    is_htan_tnp_tma_cycif = str(dataset).strip().lower() == "htan_tnp_tma_cycif"
-    is_htan_tnp_tma_mihc = str(dataset).strip().lower() == "htan_tnp_tma_mihc"
+    # Format-level defaults are intentionally independent of dataset and file
+    # names. Use the CLI parameters or a named generic preset to change the
+    # recall/artifact trade-off explicitly.
     treat_z_as_channels = str(reader_type).strip().lower() == "tiff_z_as_channels"
     flatten_nonspatial_axes_as_channels = str(reader_type).strip().lower() == "tiff_hyperstack"
-    is_htan_dfci_codex = is_htan_dfci and treat_z_as_channels
-    slide_stem = _safe_file_stem(image_path)
-    dfci_recall_rescue = is_htan_dfci and slide_stem in _DFCI_RECALL_RESCUE_STEMS
-    dfci_extra_recall = is_htan_dfci and slide_stem in _DFCI_EXTRA_RECALL_STEMS
-    dfci_max_fusion_regions = _DFCI_MAX_FUSION_RESCUE_REGIONS.get(slide_stem, []) if is_htan_dfci else []
-    hms_cycif_max_fusion_regions = _HMS_CYCIF_LOCAL_MAX_RESCUE_REGIONS.get(slide_stem, []) if is_htan_hms_cycif else []
-    hms_cycif_excluded_regions = _HMS_CYCIF_LOCAL_EXCLUDED_REGIONS.get(slide_stem, []) if is_htan_hms_cycif else []
-    hms_cycif_strict_regions = _HMS_CYCIF_STRICT_REGIONS.get(slide_stem, []) if is_htan_hms_cycif else []
-    hms_orion_strict_profile = _HMS_ORION_STRICT_PROFILES.get(slide_stem) if is_htan_hms_orion else None
-    hms_orion_weak_tissue_regions = _HMS_ORION_WEAK_TISSUE_REGIONS.get(slide_stem, []) if is_htan_hms_orion else []
-    hms_orion_weak_tissue_profile = (
-        _HMS_ORION_WEAK_TISSUE_RECOVERY_PROFILES.get(slide_stem, (60.0, 6.0))
-        if is_htan_hms_orion
-        else (60.0, 6.0)
+
+    # OME/IMS images use every available biological plane in a pixelwise max
+    # fusion. Technical AF/blank/control planes are removed by the reader.
+    ome_threshold_percentile, ome_min_signal = threshold_percentile, min_signal
+    ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = (
+        blur_sigma, close_radius, open_radius, dilate_radius
     )
-    hms_orion_background_resegmentation_regions = (
-        _HMS_ORION_LOCAL_BACKGROUND_RESEGMENTATION.get(slide_stem, []) if is_htan_hms_orion else []
-    )
-    hms_orion_background_resegmentation_profile = (
-        _HMS_ORION_LOCAL_BACKGROUND_RESEGMENTATION_PROFILES.get(slide_stem, (55.0, 6.0))
-        if is_htan_hms_orion
-        else (55.0, 6.0)
-    )
-    hms_orion_component_concavity_fill_regions = (
-        _HMS_ORION_COMPONENT_CONCAVITY_FILL.get(slide_stem, []) if is_htan_hms_orion else []
-    )
-    hms_orion_forced_foreground_polygons = (
-        _HMS_ORION_FORCED_FOREGROUND_POLYGONS.get(slide_stem, []) if is_htan_hms_orion else []
-    )
-    wustl_excluded_regions = _WUSTL_LOCAL_EXCLUDED_REGIONS.get(slide_stem, []) if is_htan_wustl_codex else []
-    wustl_max_fusion_regions = (
-        _WUSTL_LOCAL_MAX_RESCUE_REGIONS.get(slide_stem, []) if is_htan_wustl_codex else []
-    )
-    wustl_forced_foreground_polygons = (
-        _WUSTL_FORCED_FOREGROUND_POLYGONS.get(slide_stem, []) if is_htan_wustl_codex else []
-    )
-    stanford_recall = is_htan_stanford_codex and slide_stem in _STANFORD_RECALL_STEMS
-    stanford_weak_signal = is_htan_stanford_codex and slide_stem in _STANFORD_WEAK_SIGNAL_STEMS
-    stanford_strict_artifact = is_htan_stanford_codex and slide_stem in _STANFORD_STRICT_ARTIFACT_STEMS
-    stanford_max_fusion_regions = (
-        _STANFORD_LOCAL_MAX_RESCUE_REGIONS.get(slide_stem, []) if is_htan_stanford_codex else []
-    )
-    stanford_final_forced_foreground_polygons = (
-        _STANFORD_FINAL_FORCED_FOREGROUND_POLYGONS.get(slide_stem, []) if is_htan_stanford_codex else []
-    )
-    stanford_weak_signal_artifact = is_htan_stanford_codex and slide_stem in _STANFORD_WEAK_SIGNAL_ARTIFACT_STEMS
-    stanford_extra_strict_artifact = is_htan_stanford_codex and slide_stem in _STANFORD_EXTRA_STRICT_ARTIFACT_STEMS
-    stanford_extra_recall = is_htan_stanford_codex and slide_stem in _STANFORD_EXTRA_RECALL_STEMS
-    stanford_mid_recall = is_htan_stanford_codex and slide_stem in _STANFORD_MID_RECALL_STEMS
-    tnp_sardana_cycif_strict = (
-        is_htan_tnp_sardana_cycif and slide_stem in _TNP_SARDANA_CYCIF_STRICT_STEMS
-    )
-    tnp_sardana_cycif_recall = (
-        is_htan_tnp_sardana_cycif and slide_stem in _TNP_SARDANA_CYCIF_RECALL_STEMS
-    )
-    tnp_sardana_cycif_extra_strict = (
-        is_htan_tnp_sardana_cycif and slide_stem in _TNP_SARDANA_CYCIF_EXTRA_STRICT_STEMS
-    )
-    tnp_tma_cycif_strict = is_htan_tnp_tma_cycif and slide_stem in _TNP_TMA_CYCIF_STRICT_STEMS
-    tnp_tma_cycif_recall = is_htan_tnp_tma_cycif and slide_stem in _TNP_TMA_CYCIF_RECALL_STEMS
-    tnp_tma_cycif_denoise = is_htan_tnp_tma_cycif and slide_stem in _TNP_TMA_CYCIF_DENOISE_STEMS
-    tnp_tma_mihc_strict_denoise = (
-        is_htan_tnp_tma_mihc and slide_stem in _TNP_TMA_MIHC_STRICT_DENOISE_STEMS
-    )
-    tnp_tma_mihc_extra_strict_denoise = (
-        is_htan_tnp_tma_mihc and slide_stem in _TNP_TMA_MIHC_EXTRA_STRICT_DENOISE_STEMS
-    )
-    tnp_tma_mihc_bubble_cleanup = is_htan_tnp_tma_mihc and slide_stem in _TNP_TMA_MIHC_BUBBLE_STEMS
-    tnp_tma_mihc_excluded_polygons = (
-        _TNP_TMA_MIHC_BUBBLE_POLYGONS.get(slide_stem, []) if is_htan_tnp_tma_mihc else []
-    )
-    tnp_tma_cycif_final_forced_foreground_polygons = (
-        _TNP_TMA_CYCIF_FINAL_FORCED_FOREGROUND_POLYGONS.get(slide_stem, [])
-        if is_htan_tnp_tma_cycif
-        else []
-    )
-    hms_strict_regions = hms_cycif_strict_regions or ([(0.0, 0.0, 1.0, 1.0)] if hms_orion_strict_profile is not None else [])
-    hms_strict_threshold = hms_orion_strict_profile[0] if hms_orion_strict_profile is not None else 70.0
-    hms_strict_min_component_area = hms_orion_strict_profile[1] if hms_orion_strict_profile is not None else None
-    hms_cycif_max_fusion_threshold = 70.0 if hms_cycif_max_fusion_regions else 45.0
-    hms_cycif_max_fusion_min_signal = 6.0 if hms_cycif_max_fusion_regions else 2.0
-    # The reviewed HT271 ROIs contain dim tissue but also a uniformly weak
-    # scan canvas.  A high local percentile retains only independently bright
-    # structures; a low percentile would connect the canvas and fill an ROI.
-    ome_max_fusion_threshold = 70.0 if wustl_max_fusion_regions else hms_cycif_max_fusion_threshold
-    ome_max_fusion_min_signal = 6.0 if wustl_max_fusion_regions else hms_cycif_max_fusion_min_signal
-    dfci_mxif_frame_artifact = is_htan_dfci and slide_stem in _DFCI_MXIF_FRAME_ARTIFACT_STEMS
-    dfci_codex_peripheral_artifact = is_htan_dfci_codex and slide_stem in _DFCI_CODEX_PERIPHERAL_ARTIFACT_STEMS
-    hms_cycif_recall_rescue = is_htan_hms_cycif and slide_stem in _HMS_CYCIF_RECALL_STEMS
-    wustl_max_fusion_recall = is_htan_wustl_codex and slide_stem in _WUSTL_MAX_FUSION_RECALL_STEMS
-    wustl_thin_grid_cleanup = is_htan_wustl_codex and slide_stem in _WUSTL_THIN_GRID_CLEANUP_STEMS
-    vanderbilt_thin_strip_cleanup = (
-        is_htan_vanderbilt_codex and slide_stem in _VANDERBILT_CODEX_THIN_STRIP_CLEANUP_STEMS
-    )
-    wustl_low_percentile_recall = is_htan_wustl_codex and slide_stem in _WUSTL_LOW_PERCENTILE_RECALL_STEMS
-    ohsu_cycif_artifact_cleanup = is_htan_ohsu_cycif and slide_stem in _OHSU_CYCIF_ARTIFACT_CLEANUP_STEMS
-    ohsu_cycif_extra_strict = is_htan_ohsu_cycif and slide_stem in _OHSU_CYCIF_EXTRA_STRICT_STEMS
-    ohsu_cycif_empty_mask_recall = is_htan_ohsu_cycif and slide_stem in _OHSU_CYCIF_EMPTY_MASK_RECALL_STEMS
-    ohsu_cycif_local_recall = is_htan_ohsu_cycif and slide_stem in _OHSU_CYCIF_LOCAL_RECALL_STEMS
-    ohsu_cycif_max_fusion_regions = _OHSU_CYCIF_MAX_FUSION_RESCUE_REGIONS.get(slide_stem, []) if is_htan_ohsu_cycif else []
-    ohsu_cycif_excluded_regions = (
-        _OHSU_CYCIF_LOCAL_ARTIFACT_EXCLUSIONS.get(slide_stem, []) if is_htan_ohsu_cycif else []
-    )
-    ohsu_cycif_excluded_polygons = (
-        _OHSU_CYCIF_LOCAL_ARTIFACT_POLYGONS.get(slide_stem, []) if is_htan_ohsu_cycif else []
-    )
-    ohsu_cycif_weak_tissue_regions = (
-        _OHSU_CYCIF_WEAK_TISSUE_REGIONS.get(slide_stem, []) if is_htan_ohsu_cycif else []
-    )
-    if is_htan_bu_mxif:
-        # HTAN-BU has no reported edge/frame artifacts, while its sparse
-        # panels often carry real tissue in weak fluorophore or low-density DAPI
-        # regions. Use a high-recall profile after AF removal and
-        # 75th-percentile fusion; do not impose a DAPI seed gate.
-        ome_threshold_percentile, ome_min_signal = 8.0, 2.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 10, 0, 6
-        ome_min_component_area_fraction = 0.00001
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 55.0, 35
-        ome_apply_nucleus_seed_gate = False
-        qptiff_threshold_percentile, qptiff_min_signal = 25.0, 2.0
-        qptiff_blur_sigma, qptiff_close_radius, qptiff_open_radius, qptiff_dilate_radius = 3.0, 10, 0, 6
-        qptiff_min_component_area_fraction = 0.00003
-    else:
-        ome_threshold_percentile, ome_min_signal = ims_threshold_percentile, ims_min_signal
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = (
-            ims_blur_sigma,
-            ims_close_radius,
-            ims_open_radius,
-            ims_dilate_radius,
-        )
-        ome_min_component_area_fraction = ims_min_component_area_fraction
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 70.0, 25
-        ome_apply_nucleus_seed_gate = True
-        qptiff_threshold_percentile, qptiff_min_signal = threshold_percentile, min_signal
-        qptiff_blur_sigma, qptiff_close_radius, qptiff_open_radius, qptiff_dilate_radius = (
-            blur_sigma,
-            close_radius,
-            open_radius,
-            dilate_radius,
-        )
-        qptiff_min_component_area_fraction = min_component_area_fraction
-    ome_include_nucleus_thumbnail = is_htan_chop_codex
-    # Generic OME-TIFF tissue detection uses the pixelwise maximum across all
-    # retained biological markers.  This preserves tissue that is visible in
-    # only a small subset of a panel. AF/blank/control planes are still
-    # removed before fusion, so their scanner background cannot set the max.
-    ome_technical_channel_fusion = "percentile"
+    ome_min_component_area_fraction = min_component_area_fraction
     ome_fusion_percentile = 100.0
-    # Use every biological marker plane for the default OME-TIFF foreground
-    # fusion.  A non-positive cap is interpreted by the thumbnail reader as
-    # "all available biological planes"; technical AF/blank planes remain
-    # excluded because they are not tissue markers and can dominate background.
-    ome_thumbnail_marker_plane_count = 0
     ome_qc_fusion_percentile = None
-    ome_support_recovery_fusion_percentile = None
-    ome_support_recovery_threshold_percentile = 20.0
-    ome_support_recovery_min_signal = 3.0
-    ome_support_recovery_dilation_radius = 40
-    ome_max_fusion_min_component_area_fraction = 0.0001
-    ome_max_fusion_replace_existing_mask = False
-    ome_remove_small_edge_artifacts = is_htan_chop_codex
-    ome_remove_sparse_peripheral_artifacts = False
-    ome_dense_foreground_rescue = is_htan_chop_codex
-    ome_remove_border_frame_artifacts = False
-    ome_remove_border_strip_artifacts = False
-    ome_remove_thin_grid_artifacts = False
-    ome_thin_grid_min_aspect_ratio = 5.0
-    ome_thin_grid_max_thickness_fraction = 0.025
-    ome_edge_cleanup_fusion_percentile = None
-    ome_edge_cleanup_threshold_percentile = 45.0
-    ome_edge_cleanup_min_signal = 8.0
-    ome_edge_cleanup_margin_fraction = 0.08
-    ome_small_edge_max_area_fraction = 0.005
-    ome_small_edge_margin_fraction = 0.15
-    ome_max_hole_area_fraction = ims_max_hole_area_fraction
-    if is_htan_chop_codex:
-        # CODEX's DAPI is a stable tissue-support signal. Requiring nearby
-        # nuclei removes isolated marker extrema on tile boundaries without
-        # relying on a geometric border crop.
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 60.0, 20
-    elif is_htan_wustl_codex:
-        # WUSTL CODEX has genuine tissue with a strong DAPI support channel,
-        # but many scans also contain a grid of bright seam extrema.  The
-        # seams form thin bars or sparse image-spanning edge frames.  Reject
-        # them by requiring nearby nuclear signal, then remove only residual
-        # sparse/elongated border components; no geometric crop is applied.
-        ome_threshold_percentile, ome_min_signal = 45.0, 8.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 6, 1, 3
-        ome_min_component_area_fraction = 0.00015
-        ome_include_nucleus_thumbnail = True
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 60.0, 22
-        ome_remove_border_frame_artifacts = True
-        ome_remove_border_strip_artifacts = True
-        ome_remove_small_edge_artifacts = True
-        ome_remove_sparse_peripheral_artifacts = True
-        ome_small_edge_max_area_fraction = 0.01
-        ome_small_edge_margin_fraction = 0.12
-    elif is_htan_hms_cycif:
-        # HMS CyCIF has three non-biological Control channels and repeated
-        # DNA acquisitions.  After Control exclusion, a median biological
-        # marker fusion plus nearby-DNA support rejects the scattered scanner
-        # field and edge fragments while retaining coherent tissue.
-        ome_threshold_percentile, ome_min_signal = 55.0, 8.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 6, 1, 3
-        ome_min_component_area_fraction = 0.0003
-        ome_include_nucleus_thumbnail = True
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 60.0, 24
-        ome_remove_border_frame_artifacts = True
-        ome_remove_border_strip_artifacts = True
-        ome_remove_small_edge_artifacts = True
-        ome_remove_sparse_peripheral_artifacts = True
-        ome_small_edge_max_area_fraction = 0.01
-        ome_small_edge_margin_fraction = 0.12
-    elif is_htan_hms_orion:
-        # Orion backgrounds are clean after AF/Blank exclusion, whereas a
-        # median across its broad panel suppresses real tissue visible in only
-        # a subset of markers.  Use the upper biological-marker quantile and
-        # a high-recall mask; no edge-artifact pruning or nuclear gate is used.
-        ome_threshold_percentile, ome_min_signal = 20.0, 6.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 10, 0, 6
-        ome_min_component_area_fraction = 0.00001
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 70.0, 25
-        ome_support_recovery_fusion_percentile = 75.0
-        ome_support_recovery_threshold_percentile = 40.0
-        ome_support_recovery_min_signal = 6.0
-        ome_support_recovery_dilation_radius = 20
-        ome_max_hole_area_fraction = 0.10
-    elif is_htan_ohsu_mihc:
-        # OHSU mIHC images have clean black backgrounds but broad, dim tissue
-        # whose marker signal is spatially discontinuous at a conservative
-        # threshold.  Relax the signal cutoff and use moderate closing to
-        # reconnect contiguous tissue; discard the remaining tiny islands.
-        # This profile is deliberately limited to mIHC, not OHSU CyCIF.
-        ome_threshold_percentile, ome_min_signal = 8.0, 3.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 12, 0, 3
-        ome_min_component_area_fraction = 0.001
-        ome_max_hole_area_fraction = 0.05
-    elif is_htan_ohsu_cycif:
-        # OHSU CyCIF has low-level scan-canvas signal and occasional edge
-        # residue, unlike its clean mIHC counterpart.  Raise the global
-        # threshold and discard small components; this is a modality-wide
-        # intensity decision, not a positional crop or per-slide override.
-        ome_threshold_percentile, ome_min_signal = 55.0, 10.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 6, 0, 2
-        ome_min_component_area_fraction = 0.001
-        ome_max_hole_area_fraction = 0.02
-    elif tnp_sardana_cycif_strict:
-        # These individual CyCIF scenes carry diffuse background and isolated
-        # bright debris.  Use a substantially higher shared-marker cutoff and
-        # light opening; avoid any geometric ROI exclusion or foreground fill.
-        # Midpoint of the ordinary OME profile (20/6) and the preceding
-        # aggressive cleanup profile (75/16), retaining tissue that was lost
-        # under the latter without returning to the original loose mask.
-        ome_threshold_percentile, ome_min_signal = 47.5, 11.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 6, 1, 2
-        ome_min_component_area_fraction = 0.001
-        ome_max_hole_area_fraction = 0.02
-    elif is_htan_stanford_codex:
-        # Stanford CODEX has low-level tile/canvas background that survives
-        # the generic 20th-percentile fluorescence setting. Fuse every
-        # biological plane (rather than sampling 8/12), demand stronger
-        # shared signal, and remove only residual sparse/edge components.
-        # This is not a crop: genuine tissue at the image edge can remain
-        # whenever it has local DNA support and adequate marker signal.
-        ome_threshold_percentile, ome_min_signal = 65.0, 14.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 6, 1, 2
-        ome_min_component_area_fraction = 0.001
-        ome_include_nucleus_thumbnail = True
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 65.0, 20
-        ome_thumbnail_marker_plane_count = 0  # non-positive means all biological planes
-        ome_remove_border_frame_artifacts = True
-        ome_remove_border_strip_artifacts = True
-        ome_remove_small_edge_artifacts = True
-        ome_remove_sparse_peripheral_artifacts = True
-        ome_small_edge_max_area_fraction = 0.01
-        ome_small_edge_margin_fraction = 0.12
-    if tnp_sardana_cycif_recall:
-        # One half-step from the current midpoint profile back toward the
-        # ordinary OME setting, restoring tissue in the reviewed weak masks.
-        ome_threshold_percentile, ome_min_signal = 34.0, 9.0
-    if tnp_sardana_cycif_extra_strict:
-        # One half-step from the current midpoint toward the original strict
-        # profile, removing the residual diffuse foreground in these scenes.
-        ome_threshold_percentile, ome_min_signal = 62.0, 14.0
-    if tnp_tma_cycif_strict:
-        # Raise the all-marker maximum-fusion cutoff for the reviewed cores
-        # with residual diffuse foreground; preserve the ordinary morphology
-        # so actual tissue geometry is not tightened independently.
-        ome_threshold_percentile, ome_min_signal = 55.0, 14.0
-    if tnp_tma_cycif_recall:
-        # The reviewed cores still exclude dim tissue under the preceding
-        # 10/3 profile, so reduce only the intensity cutoff; do not bridge
-        # unrelated areas with an oversized closing kernel.
-        ome_threshold_percentile, ome_min_signal = 4.0, 1.0
-    if tnp_tma_cycif_denoise:
-        # Isolated fluorescence specks are disconnected from the tissue cores.
-        # A small opening removes point-like residue and the component filter
-        # discards remaining islands below 0.2% of thumbnail area; neither
-        # operation applies a positional crop or changes valid large cores.
-        ome_open_radius = 2
-        ome_min_component_area_fraction = 0.002
-    if is_htan_tnp_tma_mihc:
-        # The entire TMA06 mIHC panel has a clean but overly permissive
-        # maximum-fusion mask under the generic OME threshold. Raise the
-        # cutoff a second time cohort-wide without changing connectivity.
-        ome_threshold_percentile, ome_min_signal = 50.0, 12.0
-    if tnp_tma_mihc_strict_denoise:
-        # The reviewed mIHC cores still retain speckle at 50/12. Increase the
-        # cutoff again and remove only disconnected, point-like components.
-        ome_threshold_percentile, ome_min_signal = 65.0, 16.0
-        ome_open_radius = 2
-        ome_min_component_area_fraction = 0.002
-    if tnp_tma_mihc_extra_strict_denoise:
-        # B8 still retains foreground noise after the first strict pass.
-        # Tighten only this core rather than changing the other TMA06 masks.
-        ome_threshold_percentile, ome_min_signal = 80.0, 20.0
-        ome_open_radius = 3
-        ome_min_component_area_fraction = 0.004
-    if tnp_tma_mihc_bubble_cleanup:
-        # E1 has separate bubble rims, so the size floor removes them. E2's
-        # rims are connected to the core and is additionally handled by its
-        # precise reviewed polygons below.
-        ome_min_component_area_fraction = 0.01 if slide_stem == "TMA06_ROI45_E1" else 0.005
-        if slide_stem == "TMA06_ROI46_E2":
-            # This core's true tissue has a broad low-intensity component;
-            # preserve it with the ordinary lenient threshold, then remove
-            # only the reviewed bubble shapes via polygons.
-            ome_threshold_percentile, ome_min_signal = 20.0, 6.0
-    if stanford_recall:
-        # Reviewed masks are too tight. Lower the shared-marker cutoff and
-        # reconnect nearby signal without turning an ROI into foreground.
-        ome_threshold_percentile, ome_min_signal = 45.0, 8.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 12, 0, 5
-        ome_min_component_area_fraction = 0.0001
-        ome_max_hole_area_fraction = 0.08
-        ome_apply_nucleus_seed_gate = False
-    if stanford_weak_signal:
-        # Weak tissue is only conspicuous in a minority of markers. The 90th
-        # percentile fusion retains that evidence; strict canvas cleanup is
-        # still retained to avoid reintroducing sparse background residue.
-        ome_fusion_percentile = 90.0
-        ome_threshold_percentile, ome_min_signal = 35.0, 6.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 10, 0, 5
-        ome_min_component_area_fraction = 0.00005
-        ome_max_hole_area_fraction = 0.10
-        ome_apply_nucleus_seed_gate = False
-    if stanford_strict_artifact:
-        # These reviewed scans need the inverse trade-off: stronger shared
-        # signal and minimal morphological bridging to keep tile residue out.
-        ome_threshold_percentile, ome_min_signal = 75.0, 18.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 2, 2, 1
-        ome_min_component_area_fraction = 0.0015
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 70.0, 15
-    if stanford_weak_signal_artifact:
-        # Keep the high-percentile weak-tissue fusion, but require stronger
-        # signal and less bridging to remove its residual one-channel haze.
-        ome_threshold_percentile, ome_min_signal = 60.0, 12.0
-        ome_close_radius, ome_open_radius, ome_dilate_radius = 5, 1, 2
-        ome_min_component_area_fraction = 0.0005
-    if stanford_extra_strict_artifact:
-        ome_threshold_percentile, ome_min_signal = 85.0, 24.0
-        ome_close_radius, ome_open_radius, ome_dilate_radius = 1, 2, 1
-        ome_min_component_area_fraction = 0.002
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 75.0, 12
-    if stanford_extra_recall:
-        ome_threshold_percentile, ome_min_signal = 30.0, 4.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 16, 0, 7
-        ome_min_component_area_fraction = 0.00003
-        ome_max_hole_area_fraction = 0.10
-        ome_apply_nucleus_seed_gate = False
-    if stanford_mid_recall:
-        # Midpoint of the preceding strict profile (75/18) and the overly
-        # permissive recall profile (30/4): 52.5/11. Keep the strict profile's
-        # low connectivity so the weaker cutoff cannot bridge the whole scan.
-        ome_threshold_percentile, ome_min_signal = 52.5, 11.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 2, 2, 1
-        ome_min_component_area_fraction = 0.0015
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 70.0, 15
-    if stanford_max_fusion_regions:
-        # The base mask is preserved. A local all-marker maximum fusion can
-        # add only independently segmented weak tissue in the reviewed ROI.
-        (
-            ome_max_fusion_threshold,
-            ome_max_fusion_min_signal,
-            ome_max_fusion_min_component_area_fraction,
-        ) = _STANFORD_LOCAL_MAX_RESCUE_PROFILES[slide_stem]
-    elif is_htan_dfci_codex:
-        # DFCI's broad CODEX marker fusion carries weak scanner signal over
-        # the black canvas. Restrict it to the neighbourhood of DNA/DAPI
-        # nuclei and remove sparse frame components before closing; this does
-        # not crop a border and therefore preserves genuine edge tissue.
-        ome_threshold_percentile, ome_min_signal = 60.0, 10.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 2, 2, 3
-        ome_min_component_area_fraction = 0.0005
-        ome_include_nucleus_thumbnail = True
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 55.0, 35
-        ome_remove_border_frame_artifacts = True
-        ome_remove_border_strip_artifacts = True
-        ome_remove_small_edge_artifacts = True
-        ome_remove_sparse_peripheral_artifacts = True
-        ome_small_edge_max_area_fraction = 0.06
-        ome_small_edge_margin_fraction = 0.02
-    if ohsu_cycif_artifact_cleanup:
-        # Reviewed OHSU CyCIF slides contain bright but non-biological
-        # edge-connected tile/canvas residue.  Keep only high-confidence
-        # foreground close to Hoechst-positive nuclei, then remove residual
-        # sparse edge components.  This never applies a positional crop.
-        ome_threshold_percentile, ome_min_signal = 60.0, 12.0
-        ome_include_nucleus_thumbnail = True
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 65.0, 24
-        ome_remove_border_frame_artifacts = True
-        ome_remove_border_strip_artifacts = True
-        ome_remove_small_edge_artifacts = True
-        ome_remove_sparse_peripheral_artifacts = True
-        ome_small_edge_max_area_fraction = 0.01
-        ome_small_edge_margin_fraction = 0.12
-    if ohsu_cycif_extra_strict:
-        # These four scans retain background through sparse Hoechst-positive
-        # residue.  Reduce the support expansion; for the first three also
-        # require stronger marker signal.  LSP16714 has dim genuine tissue,
-        # so it keeps the 60/12 cutoff but shares the tighter support radius.
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 60.0, 10
-        ome_min_component_area_fraction = 0.002 if slide_stem == "LSP16714" else 0.0015
-        if slide_stem != "LSP16714":
-            ome_threshold_percentile, ome_min_signal = 65.0, 14.0
-    if ohsu_cycif_empty_mask_recall:
-        # Here the base fluorescence mask contains tissue, but its weak or
-        # absent Hoechst channel caused the strict nuclear gate to erase it.
-        # Retain all non-geometric artifact cleanup and restore only the
-        # marker-supported base mask.
-        ome_threshold_percentile, ome_min_signal = 55.0, 10.0
-        ome_apply_nucleus_seed_gate = False
-    if ohsu_cycif_local_recall:
-        # Preserve the reviewed strict mask as an anchor, then recover only
-        # nearby low-signal tissue.  The support pass cannot add a distant
-        # scanner artifact because it is intersected with the dilated anchor.
-        ome_support_recovery_fusion_percentile = 75.0
-        ome_support_recovery_threshold_percentile = 45.0
-        ome_support_recovery_min_signal = 8.0
-        ome_support_recovery_dilation_radius = 30
-    if ohsu_cycif_max_fusion_regions:
-        # These two slides retain their weak tissue only in a small marker
-        # subset.  Keep that maximum fusion local and require a high signal
-        # percentile, so the scanner canvas cannot become ROI foreground.
-        ome_support_recovery_fusion_percentile = None
-        ome_max_fusion_threshold, ome_max_fusion_min_signal = 75.0, 15.0
-        ome_max_fusion_min_component_area_fraction = 0.002
-        if slide_stem in _OHSU_CYCIF_MAX_FUSION_REPLACE_STEMS:
-            (
-                ome_max_fusion_threshold,
-                ome_max_fusion_min_signal,
-                ome_max_fusion_min_component_area_fraction,
-            ) = _OHSU_CYCIF_MAX_FUSION_PROFILES[slide_stem]
-            ome_max_fusion_replace_existing_mask = True
-    if slide_stem == "LSP13171" and is_htan_ohsu_cycif:
-        # This scan's low-intensity tile canvas also carries sparse nuclei.
-        # Its true tissue is bright enough for a stricter nuclear threshold.
-        ome_threshold_percentile, ome_min_signal = 75.0, 18.0
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 75.0, 18
-        ome_min_component_area_fraction = 0.002
-    if wustl_max_fusion_recall:
-        # These reviewed WUSTL sections express tissue in a small subset of
-        # markers, so the 75th-percentile display hides their stroma.  A 90th
-        # percentile needs support from more than one marker, unlike a pure
-        # maximum which admits one-marker seam extrema.  The QC thumbnail is
-        # still the maximum fusion so weak tissue remains visually inspectable.
-        ome_fusion_percentile = 90.0
-        ome_qc_fusion_percentile = 100.0
-        # The maximum fusion raises the faint marker-specific tissue, but a
-        # near-zero threshold also turns the dim tiled canvas into one large
-        # component.  This remains substantially more permissive than the
-        # default WUSTL profile while requiring real local marker signal.
-        ome_threshold_percentile, ome_min_signal = 25.0, 4.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 8, 0, 5
-        ome_min_component_area_fraction = 0.00001
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 50.0, 55
-        ome_max_hole_area_fraction = 0.10
-        # The weak-stroma rescue needs a maximum-marker fusion in the slide
-        # interior.  At the scan boundary, validate it against the standard
-        # percentile fusion so a low-level stitched frame cannot re-enter.
-        ome_edge_cleanup_fusion_percentile = 75.0
-    if wustl_thin_grid_cleanup:
-        ome_remove_thin_grid_artifacts = True
-        # The remaining WUSTL seam extrema are short bars rather than the
-        # image-spanning frames handled above.  This relaxed shape cutoff is
-        # deliberately enabled for this one reviewed slide only.
-        ome_thin_grid_min_aspect_ratio = 3.0
-        ome_thin_grid_max_thickness_fraction = 0.04
-    if vanderbilt_thin_strip_cleanup:
-        # The reviewed components have 11-13 px thickness and a minimum
-        # bounding-box aspect ratio of 2.73.  This cutoff is deliberately
-        # limited to S074TLF; its one tissue component has aspect ratio 1.16.
-        ome_remove_thin_grid_artifacts = True
-        ome_thin_grid_min_aspect_ratio = 2.5
-        ome_thin_grid_max_thickness_fraction = 0.04
-    if wustl_low_percentile_recall:
-        # The 90th-percentile projection of this slide contains a broad
-        # tile-wise illumination fog.  At the 75th percentile the fog drops
-        # out but real tissue remains faint, so use a permissive threshold on
-        # that conservative fusion rather than increasing the fusion rank.
-        ome_fusion_percentile = 75.0
-        ome_qc_fusion_percentile = 90.0
-        ome_threshold_percentile, ome_min_signal = 1.0, 0.2
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 16, 0, 10
-        ome_min_component_area_fraction = 0.00001
-        ome_nucleus_gate_threshold_percentile, ome_nucleus_gate_dilation_radius = 45.0, 80
-        ome_max_hole_area_fraction = 0.10
-    if dfci_recall_rescue:
-        # Reviewed slides where low-intensity tissue was labelled background.
-        # Expand only fluorescence-supported components; no rectangle is
-        # filled or force-added.
-        ome_threshold_percentile, ome_min_signal = 8.0, 2.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 10, 0, 6
-        ome_min_component_area_fraction = 0.00002
-        ome_max_hole_area_fraction = 0.10
-        if is_htan_dfci_codex:
-            ome_remove_small_edge_artifacts = False
-            ome_remove_sparse_peripheral_artifacts = False
-    if hms_cycif_recall_rescue:
-        # Preserve the deliberately excluded Control channels, but relax the
-        # remaining biological-marker mask for these low-DNA sections. Their
-        # weak tissue is not recoverable through a nuclear seed gate.
-        ome_threshold_percentile, ome_min_signal = 20.0, 4.0
-        ome_blur_sigma, ome_close_radius, ome_open_radius, ome_dilate_radius = 3.0, 10, 0, 5
-        ome_min_component_area_fraction = 0.00001
-        ome_max_hole_area_fraction = 0.10
-        ome_apply_nucleus_seed_gate = False
-        ome_remove_border_frame_artifacts = False
-        ome_remove_border_strip_artifacts = False
-        ome_remove_small_edge_artifacts = False
-        ome_remove_sparse_peripheral_artifacts = False
-    if dfci_extra_recall:
-        # These four MxIF images have contiguous tissue with low-signal gaps,
-        # not peripheral artifacts. Reconnect fluorescence-supported regions
-        # and fill their enclosed gaps without using a rectangular ROI.
-        ome_threshold_percentile, ome_min_signal = 2.0, 1.0
-        ome_close_radius, ome_open_radius, ome_dilate_radius = 20, 0, 10
-        ome_min_component_area_fraction = 0.00001
-        ome_max_hole_area_fraction = None
-    if dfci_mxif_frame_artifact:
-        # Frame strips are long, sparse components attached to the scan edge;
-        # genuine central tissue is not affected by these checks.
-        ome_remove_border_frame_artifacts = True
-        ome_remove_border_strip_artifacts = True
-        ome_remove_small_edge_artifacts = True
-        ome_small_edge_max_area_fraction = 0.04
-        ome_small_edge_margin_fraction = 0.08
-        ome_min_component_area_fraction = 0.001
-    if dfci_codex_peripheral_artifact:
-        # This core has strong outer peripheral signal but the tissue itself
-        # is bright and central. Tighten only this reviewed slide.
-        ome_threshold_percentile, ome_min_signal = 70.0, 12.0
-        ome_min_component_area_fraction = 0.002
-        ome_small_edge_max_area_fraction = 0.06
-        ome_small_edge_margin_fraction = 0.02
+    ome_max_hole_area_fraction = 0.02
+
+    # QPTIFF receives the caller-specified morphology. The common edge/frame
+    # cleanup is applied consistently to every QPTIFF, never by collection.
+    qptiff_threshold_percentile, qptiff_min_signal = threshold_percentile, min_signal
+    qptiff_blur_sigma, qptiff_close_radius, qptiff_open_radius, qptiff_dilate_radius = (
+        blur_sigma, close_radius, open_radius, dilate_radius
+    )
+    qptiff_min_component_area_fraction = min_component_area_fraction
     if trident_reader_type is None and str(image_path).lower().endswith(".qptiff"):
         trident_reader_type = "openslide"
     raw_mpp, mag, normalized_mpp = infer_mag_and_mpp(image_path, mag=mag, mpp=mpp)
@@ -3150,83 +2455,55 @@ def extract_sp_fluorescence_coords(
             min_contour_area=min_contour_area,
             fusion_percentile=ome_fusion_percentile,
             max_hole_area_fraction=ome_max_hole_area_fraction,
-            max_fusion_thumbnail_regions=[
-                *dfci_max_fusion_regions,
-                *hms_cycif_max_fusion_regions,
-                *wustl_max_fusion_regions,
-                *ohsu_cycif_max_fusion_regions,
-                *stanford_max_fusion_regions,
-            ],
-            # The ROI pass uses a max-marker fusion, so a middle-percentile
-            # local cutoff is already substantially more sensitive than the
-            # slide-wide median fusion.  Do not use a near-zero cutoff here:
-            # it connects the dim scanner background to all four sides of an
-            # ROI and effectively recreates a rectangular mask.
-            max_fusion_threshold_percentile=ome_max_fusion_threshold,
-            max_fusion_min_signal=ome_max_fusion_min_signal,
-            max_fusion_min_component_area_fraction=ome_max_fusion_min_component_area_fraction,
-            max_fusion_replace_existing_mask=ome_max_fusion_replace_existing_mask,
-            support_recovery_fusion_percentile=ome_support_recovery_fusion_percentile,
-            support_recovery_threshold_percentile=ome_support_recovery_threshold_percentile,
-            support_recovery_min_signal=ome_support_recovery_min_signal,
-            support_recovery_dilation_radius=ome_support_recovery_dilation_radius,
-            excluded_thumbnail_regions=[
-                *hms_cycif_excluded_regions,
-                *wustl_excluded_regions,
-                *ohsu_cycif_excluded_regions,
-            ],
-            excluded_thumbnail_polygons=[
-                *ohsu_cycif_excluded_polygons,
-                *tnp_tma_mihc_excluded_polygons,
-            ],
-            roi_recovery_uses_base_fusion=bool(hms_cycif_max_fusion_regions),
-            strict_threshold_regions=hms_strict_regions,
-            strict_threshold_percentile=hms_strict_threshold,
+            max_fusion_thumbnail_regions=max_fusion_thumbnail_regions or [],
+            max_fusion_threshold_percentile=max_fusion_threshold_percentile,
+            max_fusion_min_signal=max_fusion_min_signal,
+            max_fusion_min_component_area_fraction=0.0001,
+            max_fusion_replace_existing_mask=False,
+            support_recovery_fusion_percentile=None,
+            support_recovery_threshold_percentile=20.0,
+            support_recovery_min_signal=3.0,
+            support_recovery_dilation_radius=40,
+            excluded_thumbnail_regions=excluded_thumbnail_regions or [],
+            excluded_thumbnail_polygons=[],
+            roi_recovery_uses_base_fusion=False,
+            strict_threshold_regions=[],
+            strict_threshold_percentile=70.0,
             strict_min_signal=8.0,
-            strict_min_component_area_fraction=hms_strict_min_component_area,
-            post_strict_recovery_regions=[*hms_orion_weak_tissue_regions, *ohsu_cycif_weak_tissue_regions],
+            strict_min_component_area_fraction=None,
+            post_strict_recovery_regions=[],
             post_strict_recovery_fusion_percentile=75.0,
-            post_strict_recovery_threshold_percentile=(
-                60.0 if ohsu_cycif_weak_tissue_regions else hms_orion_weak_tissue_profile[0]
-            ),
-            post_strict_recovery_min_signal=(
-                8.0 if ohsu_cycif_weak_tissue_regions else hms_orion_weak_tissue_profile[1]
-            ),
-            component_concavity_fill_regions=hms_orion_component_concavity_fill_regions,
-            local_background_resegmentation_regions=hms_orion_background_resegmentation_regions,
-            local_background_resegmentation_threshold_percentile=hms_orion_background_resegmentation_profile[0],
-            local_background_resegmentation_min_signal=hms_orion_background_resegmentation_profile[1],
-            forced_foreground_polygons=hms_orion_forced_foreground_polygons,
-            final_forced_foreground_polygons=[
-                *wustl_forced_foreground_polygons,
-                *stanford_final_forced_foreground_polygons,
-                *tnp_tma_cycif_final_forced_foreground_polygons,
-            ],
-            technical_channel_fusion=ome_technical_channel_fusion,
-            force_median_marker_fusion=is_htan_dfci_codex,
-            include_nucleus_thumbnail=ome_include_nucleus_thumbnail,
+            post_strict_recovery_threshold_percentile=60.0,
+            post_strict_recovery_min_signal=6.0,
+            component_concavity_fill_regions=[],
+            local_background_resegmentation_regions=[],
+            local_background_resegmentation_threshold_percentile=55.0,
+            local_background_resegmentation_min_signal=6.0,
+            forced_foreground_polygons=[],
+            final_forced_foreground_polygons=[],
+            technical_channel_fusion="percentile",
+            force_median_marker_fusion=False,
+            include_nucleus_thumbnail=False,
             treat_z_as_channels=treat_z_as_channels,
             flatten_nonspatial_axes_as_channels=flatten_nonspatial_axes_as_channels,
-            max_thumbnail_marker_planes=ome_thumbnail_marker_plane_count,
-            remove_border_frame_artifacts=ome_remove_border_frame_artifacts,
-            remove_border_strip_artifacts=ome_remove_border_strip_artifacts,
-            remove_thin_grid_artifacts=ome_remove_thin_grid_artifacts,
-            thin_grid_min_aspect_ratio=ome_thin_grid_min_aspect_ratio,
-            thin_grid_max_thickness_fraction=ome_thin_grid_max_thickness_fraction,
-            edge_cleanup_fusion_percentile=ome_edge_cleanup_fusion_percentile,
-            edge_cleanup_threshold_percentile=ome_edge_cleanup_threshold_percentile,
-            edge_cleanup_min_signal=ome_edge_cleanup_min_signal,
-            edge_cleanup_margin_fraction=ome_edge_cleanup_margin_fraction,
-            nucleus_gate_threshold_percentile=ome_nucleus_gate_threshold_percentile,
-            nucleus_gate_dilation_radius=ome_nucleus_gate_dilation_radius,
-            apply_nucleus_seed_gate=ome_apply_nucleus_seed_gate,
-            panel_peer_reference=is_htan_bu_mxif,
-            panel_peer_dilation_radius=12 if is_htan_bu_mxif else 0,
-            remove_small_edge_artifacts=ome_remove_small_edge_artifacts,
-            small_edge_max_area_fraction=ome_small_edge_max_area_fraction,
-            small_edge_margin_fraction=ome_small_edge_margin_fraction,
-            remove_sparse_peripheral_artifacts=ome_remove_sparse_peripheral_artifacts,
-            dense_foreground_rescue=ome_dense_foreground_rescue,
+            max_thumbnail_marker_planes=0,
+            remove_border_frame_artifacts=False,
+            remove_border_strip_artifacts=False,
+            remove_thin_grid_artifacts=False,
+            thin_grid_min_aspect_ratio=5.0,
+            thin_grid_max_thickness_fraction=0.025,
+            edge_cleanup_fusion_percentile=None,
+            edge_cleanup_threshold_percentile=45.0,
+            edge_cleanup_min_signal=8.0,
+            edge_cleanup_margin_fraction=0.08,
+            nucleus_gate_threshold_percentile=70.0,
+            nucleus_gate_dilation_radius=25,
+            apply_nucleus_seed_gate=False,
+            remove_small_edge_artifacts=False,
+            small_edge_max_area_fraction=qptiff_small_edge_max_area_fraction,
+            small_edge_margin_fraction=qptiff_small_edge_margin_fraction,
+            remove_sparse_peripheral_artifacts=False,
+            dense_foreground_rescue=False,
         )
 
     load_kwargs = {"mpp": float(normalized_mpp)}
@@ -3239,7 +2516,7 @@ def extract_sp_fluorescence_coords(
                 image_path,
                 expected_channel_count=len(channel_names),
                 thumbnail_max_size=thumbnail_max_size,
-                fusion="percentile" if is_htan_bu_mxif else "median",
+                fusion="percentile",
                 fusion_percentile=ims_fusion_percentile,
             )
             max_fusion_thumbnail_rgb = None
@@ -3279,9 +2556,9 @@ def extract_sp_fluorescence_coords(
             open_radius=qptiff_open_radius,
             dilate_radius=qptiff_dilate_radius,
             min_component_area_fraction=qptiff_min_component_area_fraction,
-            remove_border_frame_artifacts=is_qptiff and not is_htan_bu_mxif,
-            remove_border_strip_artifacts=is_qptiff and not is_htan_bu_mxif,
-            remove_small_edge_artifacts=is_qptiff and not is_htan_bu_mxif,
+            remove_border_frame_artifacts=is_qptiff,
+            remove_border_strip_artifacts=is_qptiff,
+            remove_small_edge_artifacts=is_qptiff,
             max_hole_area_fraction=qptiff_max_hole_area_fraction if is_qptiff else None,
             excluded_thumbnail_regions=excluded_thumbnail_regions,
             forced_thumbnail_regions=forced_thumbnail_regions,

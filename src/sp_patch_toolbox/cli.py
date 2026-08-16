@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .pipeline.integrity import scan_manifest_strict
 from .pipeline.manifest import load_manifest
-from .profiles.reviewed_cases import reviewed_case_summary
+from .profiles.defaults import DEFAULT_PROFILES
 
 
 def _integrity_command(args: argparse.Namespace) -> int:
@@ -24,7 +24,7 @@ def _integrity_command(args: argparse.Namespace) -> int:
 
 
 def _profiles_command(_: argparse.Namespace) -> int:
-    print(json.dumps(reviewed_case_summary(), ensure_ascii=False, indent=2, sort_keys=True))
+    print(json.dumps({name: profile.to_cli_flags() for name, profile in DEFAULT_PROFILES.items()}, indent=2, sort_keys=True))
     return 0
 
 
@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     integrity.add_argument("--out", default=None, help="Optional JSON report path")
     integrity.set_defaults(handler=_integrity_command)
 
-    profiles = subparsers.add_parser("profiles", help="List reviewed special-case rule groups")
+    profiles = subparsers.add_parser("profiles", help="List generic segmentation presets")
     profiles.set_defaults(handler=_profiles_command)
 
     segment = subparsers.add_parser("segment", help="Run the compatible segmentation/coordinate pipeline")

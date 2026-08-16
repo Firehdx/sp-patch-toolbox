@@ -3,7 +3,7 @@
 ## Design boundary
 
 The old project grew around a successful operational workflow. Its readers,
-metadata logic, segmentation functions, presets and manually reviewed patches
+metadata logic, segmentation functions and generic image-condition presets
 live in one module, which made it hard to reuse safely. This repository splits
 responsibilities without invalidating prior results.
 
@@ -20,7 +20,7 @@ manifest + verified metadata
  generic all-channel thumbnail fusion
             |
             v
- generic foreground mask ---> reviewed local rule layer (optional, named only)
+ generic foreground mask ---> explicit local ROI/polygon layer (optional)
             |
             v
  contours / GeoJSON / coordinate HDF5 / QC artifacts
@@ -37,7 +37,7 @@ manifest + verified metadata
 - `coordinates`: HDF5 contract and TRIDENT-coordinate extraction.
 - `pipeline.integrity`: strict, full-page decoding at the actual thumbnail
   level. It is the gate between discovery and processing.
-- `profiles`: generic named parameter presets and explicit reviewed rules.
+- `profiles`: generic named parameter presets.
 - `compat`: exact, validated implementation retained while source functions are
   migrated in small commits. It is a compatibility boundary, not a place for
   new special cases.
@@ -57,11 +57,11 @@ coordinate file is valid only if strict source integrity passed first.
 
 ## Refactor roadmap
 
-1. Compatibility baseline (current): preserve all working formats, presets and
-   reviewed rules under `compat/`, with new public APIs and harness.
+1. Compatibility baseline: preserve working formats and generic presets under
+   `compat/`, with new public APIs and harness.
 2. Move format thumbnail builders and morphology primitives into `io/` and
    `foreground/` with synthetic tests.
-3. Convert reviewed constants into versioned JSON/YAML records with an
-   evidence field and a rule executor.
+3. Add manifest-scoped ROI/polygon records with an acceptance-test runner and
+   image provenance; do not infer them from source names.
 4. Retire `compat/` only after parity tests compare mask/coordinate outputs on
    a frozen representative corpus.

@@ -38,8 +38,8 @@ def normalize_marker_text(raw_name: Optional[str]) -> str:
             text = head
     text = re.sub(r"^Cycle\s*\d+[_\s-]*", "", text, flags=re.IGNORECASE)
     text = re.sub(r"^\d+\s*[_-]\s*", "", text)
-    # A number after a slash is a panel-position suffix in several HTAN
-    # exports (for example ``AGR2/016``), rather than part of the marker.
+    # A trailing slash-number can be a panel-position suffix rather than part
+    # of the marker identity (for example ``AGR2/016``).
     text = re.sub(r"/\d{3}$", "", text)
     text = re.sub(r"-+$", "", text).strip()
     # Normalize common cyclic-panel technical planes before registry lookup.

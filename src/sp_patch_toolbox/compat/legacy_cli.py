@@ -36,43 +36,6 @@ def contour_exists(contours_dir: Path, entry: dict) -> bool:
     return any((contours_dir / f"{stem}{suffix}").exists() for suffix in [".jpg", ".jpeg", ".png"])
 
 
-_KUORAN_CASE_TRANSLITERATIONS = {
-    "结肠癌": "jiechangai",
-    "肺腺癌": "feixianai",
-    "肺癌": "feiai",
-    "胶质瘤": "jiaozhiliu",
-    "脑膜瘤": "naomoliu",
-    "多癌种": "duoaizhong",
-    "胃癌": "weiai",
-    "乳腺癌": "ruxianai",
-    "肾癌": "shenai",
-    "卵巢癌": "luanchaoai",
-    "淋巴瘤": "linbaliu",
-}
-
-
-def kuoran_case_prefix(case_dir_name: str) -> str:
-    """Create a stable ASCII prefix from Kuoran1's top-level case directory."""
-    text = str(case_dir_name)
-    for chinese, romanized in sorted(_KUORAN_CASE_TRANSLITERATIONS.items(), key=lambda item: len(item[0]), reverse=True):
-        text = text.replace(chinese, romanized)
-    text = re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-")
-    return text or "kuoran"
-
-
-def kuoran_output_stem(relative_path: Path) -> str:
-    """Keep all relative directories in an unambiguous final patch stem."""
-    if not relative_path.parts:
-        raise ValueError("Kuoran1 image path has no case directory")
-    # Chinese is valid in POSIX filenames and retaining it for nested folders
-    # avoids collisions such as ``方案B/B_Scan1`` versus ``一致性B/B_Scan1``.
-    # The top-level case is romanized for concise, stable dataset grouping.
-    source_stem = re.sub(r"\.(ome\.)?(tif|tiff|qptiff|ims)$", "", relative_path.name, flags=re.IGNORECASE)
-    components = [kuoran_case_prefix(relative_path.parts[0]), *relative_path.parts[1:-1], source_stem]
-    normalized = [re.sub(r"[\\/:*?\"<>|\s]+", "_", component).strip("._-") for component in components]
-    return "_".join(component for component in normalized if component) or "kuoran_sample"
-
-
 def infer_reader_type(path: str) -> str:
     lower = path.lower()
     if lower.endswith(".ims"):
@@ -222,30 +185,6 @@ def preset_entries(name: str, data_root: Path | None) -> list[dict]:
     """
     if data_root is None:
         raise ValueError(f"--data-root is required for --dataset-preset {name!r}.")
-    if name == "kuoran-kuoran1":
-        source_dir = data_root / "kuoran" / "kuoran1"
-        if not source_dir.is_dir():
-            raise FileNotFoundError(f"Kuoran1 directory does not exist: {source_dir}")
-        # These four cases either contain unreadable files or legacy filter
-        # labels whose channel-to-Opal correspondence is not established.
-        excluded_case_ids = {"KR2059", "KR2061", "KR2080", "KR2084"}
-        paths = sorted(source_dir.rglob("*.qptiff"))
-        selected = [path for path in paths if path.relative_to(source_dir).parts[0].split("-", 1)[0] not in excluded_case_ids]
-        if not selected:
-            raise FileNotFoundError(f"No eligible Kuoran1 QPTIFF files found in {source_dir}")
-        output_stems = [kuoran_output_stem(path.relative_to(source_dir)) for path in selected]
-        if len(set(output_stems)) != len(output_stems):
-            duplicates = sorted(stem for stem in set(output_stems) if output_stems.count(stem) > 1)
-            raise ValueError(f"Kuoran1 output filename collision(s): {duplicates[:5]}")
-        return [
-            {
-                "dataset": "kuoran-kuoran1",
-                "path": path.relative_to(data_root).as_posix(),
-                "reader_type": "qptiff",
-                "output_stem": output_stem,
-            }
-            for path, output_stem in zip(selected, output_stems)
-        ]
     if name == "htan-bu-mxif":
         source_dir = data_root / "HTAN" / "BU" / "MxIF" / "Level_2"
         if not source_dir.is_dir():
@@ -685,7 +624,6 @@ def process_entry(entry: dict, args, data_root: Path | None, out_dir: Path) -> d
             dilate_radius=args.sp_dilate_radius,
             min_component_area_fraction=args.sp_min_component_area_fraction,
             min_contour_area=args.sp_min_contour_area,
-            marker_table_path=args.marker_table,
             excluded_thumbnail_regions=args.sp_exclude_thumbnail_region,
             forced_thumbnail_regions=args.sp_force_include_thumbnail_region,
             max_fusion_thumbnail_regions=args.sp_max_fusion_thumbnail_region,
@@ -726,7 +664,6 @@ def process_entry(entry: dict, args, data_root: Path | None, out_dir: Path) -> d
             channel_names_override=channel_names_override,
             mpp=args.mpp,
             min_tissue_proportion=args.min_foreground_fraction,
-            marker_table_path=args.marker_table,
         )
     produced = rename_trident_artifacts(produced, out_dir / "trident_job", slide_name)
     if produced.resolve() != coords_path.resolve():
@@ -776,14 +713,13 @@ def main() -> None:
     parser.add_argument("--image", default=None, help="Process one image instead of a manifest.")
     parser.add_argument(
         "--dataset-preset",
-        choices=["kuoran-kuoran1", "htan-bu-mxif", "htan-chop-codex", "htan-dfci", "htan-hms", "htan-htapp", "htan-wustl-codex", "htan-vanderbilt", "htan-ohsu", "htan-stanford-codex", "htan-tnp-sardana", "htan-tnp-tma"],
+        choices=["htan-bu-mxif", "htan-chop-codex", "htan-dfci", "htan-hms", "htan-htapp", "htan-wustl-codex", "htan-vanderbilt", "htan-ohsu", "htan-stanford-codex", "htan-tnp-sardana", "htan-tnp-tma"],
         default=None,
-        help="Curated raw-image selection. kuoran-kuoran1 selects Kuoran1 QPTIFFs except KR2059/KR2061/KR2080/KR2084 and prefixes final HDF5 names with the case directory; htan-bu-mxif selects BU MxIF Level_2; htan-chop-codex selects CHOP CODEX Level_2; htan-dfci selects DFCI CODEX and MxIF Level_2; htan-hms selects HMS CyCIF and RareCyte_Orion Level_2; htan-htapp selects only HTAPP CODEX best-focus *_Z<n>.tif hyperstacks; htan-wustl-codex selects WUSTL CODEX Level_2 OME-TIFFs; htan-vanderbilt selects Vanderbilt CODEX and MxIF Level_2 source images; htan-ohsu selects only named-channel OHSU mIHC and CyCIF Level_2 OME-TIFFs; htan-stanford-codex selects 47 verified Stanford CODEX Level_2 images; htan-tnp-sardana selects named-channel TNP-Sardana CODEX, CyCIF, and mIHC ROI Level_2 OME-TIFFs; htan-tnp-tma selects named-channel TNP-TMA CyCIF and mIHC Level_2 OME-TIFFs.",
+        help="Curated raw-image selection for reviewed HTAN Level_2 collections.",
     )
     parser.add_argument("--data-root", default=None)
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--registry", default=str(Path(__file__).resolve().parents[1] / "configs" / "marker_registry.json"))
-    parser.add_argument("--marker-table", default=None, help="Optional slide metadata table, e.g. the Kuoran Preview100 Excel panel file.")
     parser.add_argument("--trident-root", default=str(Path(__file__).resolve().parents[2] / "TRIDENT"))
     parser.add_argument("--method", choices=["sp-fluorescence", "trident-hest", "trident-otsu", "trident-grandqc"], default="sp-fluorescence")
     parser.add_argument("--reader-type", default=None, choices=["tiff", "tiff_hyperstack", "qptiff", "ims", "openslide_rgb"])

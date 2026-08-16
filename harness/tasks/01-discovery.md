@@ -12,8 +12,8 @@ channel/marker provenance.
 - Inspect image axes, shape, native channel count, page/pyramid layout and mpp.
 - Extract embedded channel labels from OME XML, ImageJ metadata, QPTIFF page
   descriptions or IMS metadata.
-- If channel labels are dye/filter names, locate the case and panel protocol
-  metadata. Do not map an Opal wavelength globally across cases.
+- If channel labels are dye/filter names, locate image-aligned panel/protocol
+  metadata. Do not map a dye or filter label to a marker without that evidence.
 - Emit unresolved images as an explicit exclusion report, not guessed channels.
 
 ## Deliverables

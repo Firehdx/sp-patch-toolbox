@@ -8,4 +8,4 @@ class MarkerTests(unittest.TestCase):
         self.assertEqual(normalize_marker_text("DAPI_04"), "DAPI")
         self.assertEqual(normalize_marker_text("empty 3"), "blank")
         self.assertEqual(normalize_marker_text("CD20/MS4A1"), "CD20")
-        self.assertEqual(normalize_marker_text("Opal 570"), "blank")
+        self.assertEqual(normalize_marker_text("Dye 570"), "Dye 570")

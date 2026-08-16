@@ -52,7 +52,7 @@ def normalize_marker_text(raw_name: Optional[str]) -> str:
         return "Nuclei"
     if re.fullmatch(r"(?:blank|empty)\s*\d*[A-Za-z]*", text, flags=re.IGNORECASE):
         return "blank"
-    if re.fullmatch(r"(?:opal\s*\d+|control[-\s]*\d+nm|A(?:488|555|647)|anti[-\s]*(?:goat|mouse|rabbit))", text, flags=re.IGNORECASE):
+    if re.fullmatch(r"(?:control[-\s]*\d+nm|A(?:488|555|647)|anti[-\s]*(?:goat|mouse|rabbit))", text, flags=re.IGNORECASE):
         return "blank"
     if re.fullmatch(r"C\d+", text, flags=re.IGNORECASE) or re.fullmatch(
         r"cycle[_\s]*\d+[_\s]*channel[_\s]*\d+", text, flags=re.IGNORECASE

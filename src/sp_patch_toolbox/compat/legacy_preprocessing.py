@@ -3,13 +3,8 @@ import math
 import os
 import re
 import sys
-import unicodedata
-import zipfile
-from collections import defaultdict
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-from xml.etree import ElementTree as ET
 
 import h5py
 import numpy as np
@@ -372,329 +367,9 @@ def _read_channel_metadata(
         channel_names = list(channel_names_override) if channel_names_override is not None else sp_reader.channel_names()
     finally:
         sp_reader.close()
-    marker_names = infer_marker_names_from_slide_table(image_path, channel_names) or list(channel_names)
-    return channel_names, marker_names
-
-
-def _xlsx_shared_strings(zf: zipfile.ZipFile) -> List[str]:
-    ns = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-    if "xl/sharedStrings.xml" not in zf.namelist():
-        return []
-    root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
-    strings = []
-    for si in root.findall("a:si", ns):
-        strings.append("".join(t.text or "" for t in si.findall(".//a:t", ns)))
-    return strings
-
-
-def _xlsx_sheet_rows(path: Path) -> Iterable[Dict[str, str]]:
-    ns = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-    with zipfile.ZipFile(path) as zf:
-        shared_strings = _xlsx_shared_strings(zf)
-        sheet_names = [name for name in zf.namelist() if re.match(r"xl/worksheets/sheet\d+\.xml$", name)]
-        for sheet_name in sheet_names:
-            root = ET.fromstring(zf.read(sheet_name))
-            for row in root.findall(".//a:sheetData/a:row", ns):
-                values: Dict[str, str] = {}
-                for cell in row.findall("a:c", ns):
-                    ref = cell.attrib.get("r", "")
-                    column = re.sub(r"[^A-Za-z]", "", ref)
-                    if not column:
-                        continue
-                    value_node = cell.find("a:v", ns)
-                    value = ""
-                    if value_node is not None:
-                        value = value_node.text or ""
-                        if cell.attrib.get("t") == "s" and value:
-                            value = shared_strings[int(value)]
-                    values[column] = str(value).strip()
-                if values:
-                    yield values
-
-
-def _sample_id_from_path(image_path: str | Path) -> Optional[str]:
-    match = re.search(r"(SH\d+)", Path(image_path).name, flags=re.IGNORECASE)
-    return match.group(1).upper() if match else None
-
-
-def _find_slide_marker_table(image_path: str | Path) -> Optional[Path]:
-    folder = Path(image_path).resolve().parent
-    candidates = [
-        path
-        for path in folder.glob("*.xlsx")
-        if not path.name.startswith("~$") and path.is_file()
-    ]
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: ("样本" not in p.name, p.name))
-    return candidates[0]
-
-
-def _panel_marker_pairs(panel_text: str) -> List[Tuple[str, str]]:
-    pairs = []
-    for marker, wavelength in re.findall(r"([A-Za-z][A-Za-z0-9_+/]*)\s*-\s*(\d{3,4})", panel_text):
-        pairs.append((marker.strip(), wavelength.strip()))
-    return pairs
-
-
-def _kuoran_normalize_token(value: object) -> str:
-    """Normalize case/panel labels while preserving Chinese path components."""
-    text = unicodedata.normalize("NFKC", str(value or "")).upper().replace("PANNEL", "PANEL")
-    return re.sub(r"[^0-9A-Z\u4e00-\u9fff]+", "", text)
-
-
-def _kuoran_panel_token(value: object) -> str:
-    token = _kuoran_normalize_token(value)
-    match = re.search(r"PANEL([0-9A-Z]+)", token)
-    if match:
-        return f"PANEL{match.group(1)}"
-    match = re.search(r"方案([0-9A-Z]+)", token)
-    if match:
-        return match.group(1)
-    return token
-
-
-def _kuoran_metadata_dye(value: object) -> Optional[str]:
-    text = _kuoran_normalize_token(value)
-    if "DAPI" in text:
-        return "DAPI"
-    match = re.search(r"(480|520|540|570|590|620|650|690|780)", text)
-    return match.group(1) if match else None
-
-
-@lru_cache(maxsize=4)
-def _load_kuoran_marker_blocks(table_path_text: str) -> Tuple[dict, ...]:
-    """Parse the case/panel marker table shared by Kuoran1 and Kuoran2.
-
-    Excel uses merged cells, and a few historical projects identify a panel in
-    column B rather than the nominal panel column C.  A new round-1 row also
-    starts a new protocol when neither field changes (notably KR2059).
-    """
-    table_path = Path(table_path_text)
-    blocks: List[dict] = []
-    project = ""
-    panel_c = ""
-    panel_b = ""
-    sequence = 0
-
-    for row in _xlsx_sheet_rows(table_path):
-        if str(row.get("A", "")).strip() == "项目号":
-            continue
-        new_block = False
-        project_value = str(row.get("A", "")).strip()
-        panel_c_value = str(row.get("C", "")).strip()
-        panel_b_value = str(row.get("B", "")).strip()
-        round_value = str(row.get("D", "")).strip()
-        if project_value:
-            project = project_value
-            panel_c = panel_c_value
-            panel_b = panel_b_value
-            new_block = True
-        else:
-            if panel_c_value:
-                panel_c = panel_c_value
-                new_block = True
-            if panel_b_value:
-                # Some older Kuoran entries use column B as the protocol
-                # field.  A changed B label on a new round must not be
-                # appended to the preceding panel (e.g. KR2074's single-
-                # fluorophore validation rows).
-                if round_value == "1" and panel_b_value != panel_b:
-                    new_block = True
-                panel_b = panel_b_value
-            if (
-                round_value == "1"
-                and blocks
-                and blocks[-1]["project"] == project
-                and blocks[-1]["panel_c"] == panel_c
-                and blocks[-1]["panel_b"] == panel_b
-                and blocks[-1]["pairs"]
-            ):
-                new_block = True
-        if new_block:
-            sequence += 1
-
-        marker = str(row.get("E", "")).strip()
-        dye = _kuoran_metadata_dye(row.get("G", ""))
-        if not project or not marker or dye is None:
-            continue
-        if not blocks or blocks[-1]["sequence"] != sequence:
-            blocks.append(
-                {
-                    "sequence": sequence,
-                    "project": project,
-                    "project_token": _kuoran_normalize_token(project),
-                    "panel_c": panel_c,
-                    "panel_b": panel_b,
-                    "pairs": [],
-                }
-            )
-        blocks[-1]["pairs"].append((dye, marker))
-
-    parsed: List[dict] = []
-    for block in blocks:
-        marker_map: Dict[str, set[str]] = defaultdict(set)
-        for dye, marker in block["pairs"]:
-            marker_map[dye].add(marker)
-        parsed.append(
-            {
-                **block,
-                "marker_map": {dye: tuple(sorted(markers)) for dye, markers in marker_map.items()},
-                "panel_token": _kuoran_panel_token(block["panel_c"] or block["panel_b"]),
-            }
-        )
-    return tuple(parsed)
-
-
-def _kuoran_project_candidates(image_path: Path, blocks: Sequence[dict]) -> List[str]:
-    parts = list(image_path.parts)
-    try:
-        start = next(index for index, part in enumerate(parts) if part.lower() == "kuoran1") + 1
-    except StopIteration:
-        return []
-    directories = [_kuoran_normalize_token(part) for part in parts[start:-1] if _kuoran_normalize_token(part)]
-    combinations = set(directories)
-    for width in (2, 3):
-        for index in range(len(directories) - width + 1):
-            combinations.add("".join(directories[index : index + width]))
-    project_tokens = {block["project_token"] for block in blocks}
-    matches = [
-        project_token
-        for project_token in project_tokens
-        if any(candidate == project_token or candidate.startswith(project_token) for candidate in combinations)
-    ]
-    if not matches:
-        return []
-    longest = max(map(len, matches))
-    return sorted({match for match in matches if len(match) == longest})
-
-
-def _kuoran_marker_names_from_table(
-    image_path: Path,
-    channel_names: Sequence[str],
-    table_path: Path,
-) -> Optional[List[str]]:
-    """Map named Kuoran1 Opal pages to the marker panel for that case.
-
-    The legacy ``Cy5/FITC/Cy3/Texas Red`` pages deliberately remain raw filter
-    labels: those labels do not encode a unique Opal wavelength in this data.
-    """
-    if "kuoran1" not in {part.lower() for part in image_path.parts}:
-        return None
-    try:
-        blocks = _load_kuoran_marker_blocks(str(table_path.resolve()))
-    except (OSError, ValueError, zipfile.BadZipFile, ET.ParseError):
-        return None
-    project_tokens = _kuoran_project_candidates(image_path, blocks)
-    candidates = [block for block in blocks if block["project_token"] in project_tokens]
-    if not candidates:
-        return None
-
-    path_tokens = {_kuoran_panel_token(part) for part in image_path.parts[:-1]}
-    path_tokens.discard("")
-    panel_matched = [
-        block for block in candidates if block["panel_token"] and block["panel_token"] in path_tokens
-    ]
-    active = panel_matched or candidates
-
-    variants = set()
-    for block in active:
-        mapped: List[str] = []
-        valid = True
-        for channel_name in channel_names:
-            channel_text = str(channel_name).strip()
-            upper = channel_text.upper()
-            if "DAPI" in upper:
-                mapped.append("DAPI")
-                continue
-            if "SAMPLE AF" in upper or upper == "AF" or "AUTOFLUORESCENCE" in upper:
-                mapped.append("Autofluorescence")
-                continue
-            match = re.search(r"OPAL\s*(\d{3,4})", channel_text, flags=re.IGNORECASE)
-            if match:
-                markers = block["marker_map"].get(match.group(1), ())
-                if len(markers) == 1:
-                    mapped.append(markers[0])
-                    continue
-                valid = False
-                break
-            # A legacy filter name has no file-internal wavelength identity.
-            mapped.append(channel_text)
-        if valid:
-            variants.add(tuple(mapped))
-    if len(variants) != 1:
-        return None
-    return list(next(iter(variants)))
-
-
-def infer_marker_names_from_slide_table(
-    image_path: str | Path,
-    channel_names: Sequence[str],
-    marker_table_path: str | Path | None = None,
-) -> Optional[List[str]]:
-    """Infer biological marker names for fluorophore channels from a slide-level table."""
-    table_path = Path(marker_table_path).expanduser() if marker_table_path else _find_slide_marker_table(image_path)
-    image_path = Path(image_path)
-    if table_path is not None and table_path.exists():
-        kuoran_marker_names = _kuoran_marker_names_from_table(image_path, channel_names, table_path)
-        if kuoran_marker_names is not None:
-            return kuoran_marker_names
-    sample_id = _sample_id_from_path(image_path)
-    if table_path is None or sample_id is None or not table_path.exists():
-        return None
-
-    panel_text = ""
-    try:
-        for row in _xlsx_sheet_rows(table_path):
-            row_sample = str(row.get("A", "")).strip().upper()
-            if row_sample == sample_id:
-                panel_text = " ".join(str(v) for v in row.values() if v)
-                break
-    except Exception:
-        return None
-    if not panel_text:
-        return None
-
-    pairs = _panel_marker_pairs(panel_text)
-    if not pairs:
-        return None
-
-    opal_wavelengths = []
-    for name in channel_names:
-        match = re.search(r"Opal\s*(\d{3,4})", str(name), flags=re.IGNORECASE)
-        if match:
-            opal_wavelengths.append(match.group(1))
-
-    wavelength_to_marker: Dict[str, str] = {}
-    unmatched_pairs: List[Tuple[str, str]] = []
-    for marker, wavelength in pairs:
-        if wavelength in opal_wavelengths and wavelength not in wavelength_to_marker:
-            wavelength_to_marker[wavelength] = marker
-        else:
-            unmatched_pairs.append((marker, wavelength))
-
-    missing_opals = [w for w in opal_wavelengths if w not in wavelength_to_marker]
-    if len(missing_opals) == len(unmatched_pairs):
-        for missing_wavelength, (marker, _) in zip(missing_opals, unmatched_pairs):
-            wavelength_to_marker[missing_wavelength] = marker
-    elif len(missing_opals) == 1:
-        cd8_pair = next((pair for pair in unmatched_pairs if pair[0].upper() == "CD8"), None)
-        if cd8_pair is not None:
-            wavelength_to_marker[missing_opals[0]] = cd8_pair[0]
-
-    marker_names = []
-    for channel_name in channel_names:
-        channel_text = str(channel_name)
-        match = re.search(r"Opal\s*(\d{3,4})", channel_text, flags=re.IGNORECASE)
-        if match and match.group(1) in wavelength_to_marker:
-            marker_names.append(wavelength_to_marker[match.group(1)])
-        elif channel_text.upper() == "DAPI":
-            marker_names.append("DAPI")
-        elif "AF" in channel_text.upper():
-            marker_names.append("Autofluorescence")
-        else:
-            marker_names.append(channel_text)
-    return marker_names
+    # Raw reader names are preserved.  Mapping a dye or filter label to a
+    # biological marker is dataset-specific curation, not preprocessing.
+    return channel_names, list(channel_names)
 
 
 def _odd_kernel(radius: int) -> Optional[np.ndarray]:
@@ -2719,7 +2394,6 @@ def extract_trident_coords(
     channel_names_override: Optional[Sequence[str]] = None,
     mpp: Optional[float] = None,
     min_tissue_proportion: float = 0.0,
-    marker_table_path: str | Path | None = None,
 ) -> Path:
     """Run TRIDENT segmentation + coordinate extraction, then append SP channel metadata."""
     _ensure_trident_import(trident_root)
@@ -2733,7 +2407,6 @@ def extract_trident_coords(
         marker_registry_path=marker_registry_path,
         channel_names_override=channel_names_override,
     )
-    marker_names = infer_marker_names_from_slide_table(image_path, channel_names, marker_table_path) or marker_names
 
     job_dir = Path(job_dir)
     seg_device = "cpu" if segmenter == "otsu" or gpu < 0 else f"cuda:{gpu}"
@@ -2807,7 +2480,6 @@ def extract_sp_fluorescence_coords(
     dilate_radius: int = 3,
     min_component_area_fraction: float = 0.001,
     min_contour_area: float = 1000.0,
-    marker_table_path: str | Path | None = None,
     excluded_thumbnail_regions: Optional[Sequence[Tuple[float, float, float, float]]] = None,
     forced_thumbnail_regions: Optional[Sequence[Tuple[float, float, float, float]]] = None,
     max_fusion_thumbnail_regions: Optional[Sequence[Tuple[float, float, float, float]]] = None,
@@ -2839,11 +2511,10 @@ def extract_sp_fluorescence_coords(
         marker_registry_path=marker_registry_path,
         channel_names_override=channel_names_override,
     )
-    marker_names = infer_marker_names_from_slide_table(image_path, channel_names, marker_table_path) or marker_names
 
     job_dir = Path(job_dir)
     # BU has sparse MxIF marker panels: a median suppresses valid tissue when
-    # only DAPI plus one or two Opal channels carry signal.  AF is still
+    # only DAPI plus one or two fluorophore channels carry signal. AF is still
     # removed by the native readers; use a 75th-percentile fusion only for
     # this dataset so the more artifact-conservative defaults remain intact.
     is_htan_bu_mxif = str(dataset).strip().lower() == "htan_bu_mxif"
@@ -2972,7 +2643,7 @@ def extract_sp_fluorescence_coords(
     )
     if is_htan_bu_mxif:
         # HTAN-BU has no reported edge/frame artifacts, while its sparse
-        # panels often carry real tissue in weak Opal or low-density DAPI
+        # panels often carry real tissue in weak fluorophore or low-density DAPI
         # regions. Use a high-recall profile after AF removal and
         # 75th-percentile fusion; do not impose a DAPI seed gate.
         ome_threshold_percentile, ome_min_signal = 8.0, 2.0

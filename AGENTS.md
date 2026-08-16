@@ -10,8 +10,9 @@ are more important than throughput.
 2. Run `sppatch integrity` before generating coordinates for a new collection.
    A slide with any strict decoding error is excluded until its source data is
    replaced or re-exported.
-3. Never infer marker identities from a dye name alone. For QPTIFF/Opal data,
-   resolve `case -> panel/protocol -> dye -> marker` using verified metadata.
+3. Never infer marker identities from a dye or filter name alone. Preserve the
+   raw channel label unless an image-aligned metadata mapping is explicitly
+   supplied.
 4. Keep the generic foreground profile generic. A manual correction requires
    a named slide, documented QA evidence, normalized ROI coordinates and a
    reason. A rectangle is never automatic foreground.

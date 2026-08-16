@@ -2,23 +2,25 @@
 
 ## Channel is not marker
 
-An image channel may be a biological marker (`CD8`), a dye (`Opal 570`), a
-filter (`Cy5 MSI`), a cycle/channel coordinate, DAPI, autofluorescence or RGB.
+An image channel may be a biological marker (`CD8`), a dye, a filter (`Cy5
+MSI`), a cycle/channel coordinate, DAPI, autofluorescence or RGB.
 Only biological markers should be presented as resolved marker identities.
 
-For case-specific Opal panels, the only safe resolution chain is:
+The only safe resolution chain for dye/filter-labelled data is:
 
 ```text
-raw slide -> case directory -> panel/protocol -> metadata dye row -> marker
+raw slide -> image-aligned panel/protocol metadata -> marker
 ```
 
-Never reuse an `Opal 480 -> marker` mapping across cases without evidence.
+Do not infer a marker from the dye/filter label or reuse a mapping across
+images without explicit evidence. If no mapping is supplied, preserve the raw
+label and record the marker as unresolved.
 
 ## Format-specific rules
 
 | Format | Typical axes/layout | Safe source of channel names | Notes |
 |---|---|---|---|
-| QPTIFF | page-per-channel, repeated pyramid groups | PerkinElmer page XML + case/panel metadata | Strictly decode all channel pages before use. |
+| QPTIFF | page-per-channel, repeated pyramid groups | page XML plus image-aligned metadata, if available | Strictly decode all channel pages before use. |
 | OME-TIFF | CYX/CZYX/TCYX or page stack | OME XML `Channel@Name` | Inspect axes; Z is not automatically marker C. |
 | ImageJ TIFF | labels may enumerate T×C planes | ImageJ labels | Validate label count against non-spatial plane count. |
 | IMS | HDF5 channel groups and resolution levels | Imaris channel metadata | Prefer native lower resolution for thumbnails. |

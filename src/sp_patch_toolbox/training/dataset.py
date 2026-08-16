@@ -297,9 +297,8 @@ class SpatialProteomicsPatchDataset(Dataset):
         if len(display_marker_names) < image.shape[0]:
             display_marker_names = display_marker_names + raw_names[len(display_marker_names) : image.shape[0]]
         display_marker_names = list(display_marker_names[: image.shape[0]])
-        # Prefer biological marker names when metadata supplied them. Raw TIFF
-        # channel names can be fluorophore labels such as Opal 570, which are
-        # useful for provenance but not marker identity.
+        # Prefer biological marker names when metadata supplied them. Raw
+        # fluorophore/filter labels are useful for provenance, not identity.
         marker_ids = np.asarray(self.registry.ids_for(display_marker_names), dtype=np.int64)
 
         keep = np.ones_like(marker_ids, dtype=bool)

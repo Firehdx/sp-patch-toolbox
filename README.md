@@ -63,6 +63,10 @@ sppatch segment -- --manifest images.jsonl --data-root /data/sp --out-dir /data/
   --method sp-fluorescence --patch-size 224 --overlap 0
 ```
 
+An explicit `--sp-*` value overrides the corresponding named profile default;
+the selected profile fills only values that were not supplied on the command
+line.
+
 ## Minimal reproducible example
 
 The repository deliberately contains no source images.  The following example

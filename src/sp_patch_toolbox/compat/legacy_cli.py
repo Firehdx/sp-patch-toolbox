@@ -27,12 +27,13 @@ def safe_stem(path: str) -> str:
     return stem.strip("_") or "sample"
 
 
-def contour_stem(path: str) -> str:
-    return re.sub(r"\.(ome\.)?(tif|tiff|qptiff|ims)$", "", Path(path).name, flags=re.IGNORECASE)
+def artifact_stem(entry: dict) -> str:
+    """Return one filesystem-safe stem for every generated per-slide artifact."""
+    return safe_stem(str(entry.get("output_stem") or entry["path"]))
 
 
 def contour_exists(contours_dir: Path, entry: dict) -> bool:
-    stem = contour_stem(entry["path"])
+    stem = artifact_stem(entry)
     return any((contours_dir / f"{stem}{suffix}").exists() for suffix in [".jpg", ".jpeg", ".png"])
 
 
@@ -141,7 +142,7 @@ def rename_trident_artifacts(produced_coords: Path, job_dir: Path, output_stem: 
 def process_entry(entry: dict, args, data_root: Path | None, out_dir: Path) -> dict:
     reader_type = entry.get("reader_type") or infer_reader_type(entry["path"])
     source_path = source_path_for(entry, data_root)
-    slide_name = str(entry.get("output_stem") or safe_stem(entry["path"]))
+    slide_name = artifact_stem(entry)
     coords_dir = out_dir / f"patch_{args.patch_size}_overlap_{args.overlap}" / "patches"
     coords_path = coords_dir / f"{slide_name}_patches.h5"
     channel_names_override = entry.get("channel_names")
@@ -254,8 +255,34 @@ def keep_by_qc_contours(entry: dict, args) -> bool:
     return True
 
 
+def _option_was_supplied(argv: list[str], option: str) -> bool:
+    """Recognize both ``--option value`` and ``--option=value`` spellings."""
+    return any(value == option or value.startswith(f"{option}=") for value in argv)
+
+
+def apply_foreground_profile(args, argv: list[str]) -> None:
+    """Apply profile defaults without discarding explicit CLI overrides."""
+    profile = DEFAULT_PROFILES[args.foreground_preset]
+    values = [
+        ("sp_threshold_percentile", "--sp-threshold-percentile", profile.threshold_percentile),
+        ("sp_min_signal", "--sp-min-signal", profile.min_signal),
+        ("sp_blur_sigma", "--sp-blur-sigma", profile.blur_sigma),
+        ("sp_close_radius", "--sp-close-radius", profile.close_radius),
+        ("sp_open_radius", "--sp-open-radius", profile.open_radius),
+        ("sp_dilate_radius", "--sp-dilate-radius", profile.dilate_radius),
+        ("sp_min_component_area_fraction", "--sp-min-component-area-fraction", profile.min_component_area_fraction),
+        ("min_foreground_fraction", "--min-foreground-fraction", profile.min_foreground_fraction),
+    ]
+    for attribute, option, profile_value in values:
+        if not _option_was_supplied(argv, option):
+            setattr(args, attribute, profile_value)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Segment foreground tissue and write 224x224 patch coordinate HDF5 files.")
+    parser = argparse.ArgumentParser(
+        description="Segment foreground tissue and write 224x224 patch coordinate HDF5 files.",
+        allow_abbrev=False,
+    )
     parser.add_argument("--manifest", default=None, help="Input image manifest JSONL from build_manifest.py.")
     parser.add_argument("--image", default=None, help="Process one image instead of a manifest.")
     parser.add_argument("--data-root", default=None)
@@ -356,15 +383,7 @@ def main() -> None:
         help="Minimum 8-bit threshold used only inside each QPTIFF maximum-fusion ROI.",
     )
     args = parser.parse_args()
-    profile = DEFAULT_PROFILES[args.foreground_preset]
-    args.sp_threshold_percentile = profile.threshold_percentile
-    args.sp_min_signal = profile.min_signal
-    args.sp_blur_sigma = profile.blur_sigma
-    args.sp_close_radius = profile.close_radius
-    args.sp_open_radius = profile.open_radius
-    args.sp_dilate_radius = profile.dilate_radius
-    args.sp_min_component_area_fraction = profile.min_component_area_fraction
-    args.min_foreground_fraction = profile.min_foreground_fraction
+    apply_foreground_profile(args, sys.argv[1:])
     args.sp_exclude_thumbnail_region = parse_thumbnail_regions(args.sp_exclude_thumbnail_region)
     args.sp_force_include_thumbnail_region = parse_thumbnail_regions(args.sp_force_include_thumbnail_region)
     args.sp_max_fusion_thumbnail_region = parse_thumbnail_regions(args.sp_max_fusion_thumbnail_region)
